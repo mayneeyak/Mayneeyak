@@ -78,3 +78,4 @@ These are written in plain Lua 5.1 (no type annotations or `+=`), so they also r
 ## Other projects in this repo
 
 - [`animations/`](animations/README.md): code-only character animations (moves panel + dancing NPC).
+- [`film/`](film/README.md): Film Studio, an engine for animated films made with code, plus an example episode.
