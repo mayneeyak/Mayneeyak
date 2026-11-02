@@ -79,3 +79,4 @@ These are written in plain Lua 5.1 (no type annotations or `+=`), so they also r
 
 - [`animations/`](animations/README.md): code-only character animations (moves panel + dancing NPC).
 - [`film/`](film/README.md): Film Studio, an engine for animated films made with code, plus an example episode.
+- [`blender-film/`](blender-film/README.md): filmkit, a Python + Blender engine for 3D animated films, plus the example film "Park Pals".
