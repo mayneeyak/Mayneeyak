@@ -63,3 +63,14 @@ Add an entry to `TycoonConfig.Items` in `src/shared/TycoonConfig.lua`:
 ```
 
 Keep droppers to the left of (lower X than) the upgraders so drops pass through them.
+
+## No Rojo? Paste-ready version
+
+`standalone/` has the whole game as two scripts you can paste straight into Studio:
+
+| File | Create this in Studio | Where |
+|---|---|---|
+| `standalone/TycoonServer.server.lua` | **Script** | ServerScriptService |
+| `standalone/TycoonHUD.client.lua` | **LocalScript** | StarterPlayer → StarterPlayerScripts |
+
+These are generated from the files in `src/`; if you change `src/`, update them too.
