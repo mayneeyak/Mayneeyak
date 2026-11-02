@@ -16,11 +16,11 @@ local DataService = {}
 
 local MAX_RETRIES = 3
 
-local store: DataStore? = nil
+local store = nil
 -- [Player] = { Data = table, CanSave = boolean }
 local sessions = {}
 
-local function keyFor(player: Player): string
+local function keyFor(player)
 	return "Player_" .. player.UserId
 end
 
@@ -33,19 +33,19 @@ end
 
 -- Fill in any missing fields so old saves keep working after updates.
 local function reconcile(data)
-	if typeof(data) ~= "table" then
+	if type(data) ~= "table" then
 		return defaultData()
 	end
-	if typeof(data.Cash) ~= "number" then
+	if type(data.Cash) ~= "number" then
 		data.Cash = Config.StartingCash
 	end
-	if typeof(data.Owned) ~= "table" then
+	if type(data.Owned) ~= "table" then
 		data.Owned = {}
 	end
 	return data
 end
 
-local function withRetries(label: string, fn: () -> any): (boolean, any)
+local function withRetries(label, fn)
 	for attempt = 1, MAX_RETRIES do
 		local ok, result = pcall(fn)
 		if ok then
@@ -59,7 +59,7 @@ local function withRetries(label: string, fn: () -> any): (boolean, any)
 	return false, nil
 end
 
-local function updateLeaderstat(player: Player, cash: number)
+local function updateLeaderstat(player, cash)
 	local leaderstats = player:FindFirstChild("leaderstats")
 	local cashValue = leaderstats and leaderstats:FindFirstChild("Cash")
 	if cashValue then
@@ -83,7 +83,7 @@ function DataService.Init()
 	task.spawn(function()
 		while true do
 			task.wait(Config.AutosaveInterval)
-			for player in sessions do
+			for player in pairs(sessions) do
 				task.spawn(DataService.Save, player)
 			end
 		end
@@ -92,11 +92,11 @@ function DataService.Init()
 	-- Save everyone when the server shuts down
 	game:BindToClose(function()
 		local pending = 0
-		for player in sessions do
-			pending += 1
+		for player in pairs(sessions) do
+			pending = pending + 1
 			task.spawn(function()
 				DataService.Save(player)
-				pending -= 1
+				pending = pending - 1
 			end)
 		end
 		local deadline = os.clock() + 25
@@ -107,7 +107,7 @@ function DataService.Init()
 end
 
 -- Returns the player's data, or nil if they left while it was loading.
-function DataService.Load(player: Player)
+function DataService.Load(player)
 	local data = nil
 	local canSave = false
 
@@ -135,15 +135,19 @@ function DataService.Load(player: Player)
 	return data
 end
 
-function DataService.Save(player: Player): boolean
+function DataService.Save(player)
 	local session = sessions[player]
 	if not session or not session.CanSave or not store then
 		return false
 	end
 
+	local ownedCopy = {}
+	for itemId, owned in pairs(session.Data.Owned) do
+		ownedCopy[itemId] = owned
+	end
 	local snapshot = {
 		Cash = session.Data.Cash,
-		Owned = table.clone(session.Data.Owned),
+		Owned = ownedCopy,
 	}
 
 	local ok = withRetries("Save " .. player.Name, function()
@@ -155,7 +159,7 @@ function DataService.Save(player: Player): boolean
 end
 
 -- Call when the player leaves.
-function DataService.Release(player: Player)
+function DataService.Release(player)
 	if not sessions[player] then
 		return
 	end
@@ -163,7 +167,7 @@ function DataService.Release(player: Player)
 	sessions[player] = nil
 end
 
-function DataService.CreateLeaderstats(player: Player)
+function DataService.CreateLeaderstats(player)
 	local session = sessions[player]
 	if not session then
 		return
@@ -182,39 +186,39 @@ end
 
 -- Cash ------------------------------------------------------------------------
 
-function DataService.GetCash(player: Player): number
+function DataService.GetCash(player)
 	local session = sessions[player]
 	return session and session.Data.Cash or 0
 end
 
-function DataService.AddCash(player: Player, amount: number)
+function DataService.AddCash(player, amount)
 	local session = sessions[player]
 	if not session then
 		return
 	end
-	session.Data.Cash += math.floor(amount)
+	session.Data.Cash = session.Data.Cash + math.floor(amount)
 	updateLeaderstat(player, session.Data.Cash)
 end
 
 -- Removes the cash and returns true if the player can afford it.
-function DataService.TrySpend(player: Player, amount: number): boolean
+function DataService.TrySpend(player, amount)
 	local session = sessions[player]
 	if not session or session.Data.Cash < amount then
 		return false
 	end
-	session.Data.Cash -= amount
+	session.Data.Cash = session.Data.Cash - amount
 	updateLeaderstat(player, session.Data.Cash)
 	return true
 end
 
 -- Ownership -----------------------------------------------------------------
 
-function DataService.Owns(player: Player, itemId: string): boolean
+function DataService.Owns(player, itemId)
 	local session = sessions[player]
 	return session ~= nil and session.Data.Owned[itemId] == true
 end
 
-function DataService.SetOwned(player: Player, itemId: string)
+function DataService.SetOwned(player, itemId)
 	local session = sessions[player]
 	if session then
 		session.Data.Owned[itemId] = true

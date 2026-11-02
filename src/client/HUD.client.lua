@@ -28,14 +28,14 @@ gui.IgnoreGuiInset = false
 local cashFrame = Instance.new("Frame")
 cashFrame.AnchorPoint = Vector2.new(0.5, 0)
 cashFrame.Position = UDim2.new(0.5, 0, 0, 10)
-cashFrame.Size = UDim2.fromOffset(220, 50)
+cashFrame.Size = UDim2.new(0, 220, 0, 50)
 cashFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 cashFrame.BackgroundTransparency = 0.2
 cashFrame.Parent = gui
 Instance.new("UICorner", cashFrame).CornerRadius = UDim.new(0, 12)
 
 local cashLabel = Instance.new("TextLabel")
-cashLabel.Size = UDim2.fromScale(1, 1)
+cashLabel.Size = UDim2.new(1, 0, 1, 0)
 cashLabel.BackgroundTransparency = 1
 cashLabel.Font = Enum.Font.FredokaOne
 cashLabel.TextScaled = true
@@ -50,7 +50,7 @@ padding.Parent = cashLabel
 local toastList = Instance.new("Frame")
 toastList.AnchorPoint = Vector2.new(0.5, 1)
 toastList.Position = UDim2.new(0.5, 0, 1, -20)
-toastList.Size = UDim2.fromOffset(360, 200)
+toastList.Size = UDim2.new(0, 360, 0, 200)
 toastList.BackgroundTransparency = 1
 toastList.Parent = gui
 local layout = Instance.new("UIListLayout")
@@ -64,11 +64,11 @@ gui.Parent = player:WaitForChild("PlayerGui")
 
 -- Cash display ----------------------------------------------------------------
 
-local function bindCash(cashValue: IntValue)
+local function bindCash(cashValue)
 	local function update()
 		cashLabel.Text = Format.cash(cashValue.Value)
-		cashFrame.Size = UDim2.fromOffset(240, 56)
-		TweenService:Create(cashFrame, TweenInfo.new(0.15), { Size = UDim2.fromOffset(220, 50) }):Play()
+		cashFrame.Size = UDim2.new(0, 240, 0, 56)
+		TweenService:Create(cashFrame, TweenInfo.new(0.15), { Size = UDim2.new(0, 220, 0, 50) }):Play()
 	end
 	cashValue.Changed:Connect(update)
 	update()
@@ -84,12 +84,12 @@ end)
 
 local toastCount = 0
 
-local function showToast(message: string, kind: string)
-	toastCount += 1
+local function showToast(message, kind)
+	toastCount = toastCount + 1
 
 	local toast = Instance.new("TextLabel")
 	toast.LayoutOrder = toastCount
-	toast.Size = UDim2.fromOffset(360, 40)
+	toast.Size = UDim2.new(0, 360, 0, 40)
 	toast.BackgroundColor3 = NOTIFY_COLORS[kind] or NOTIFY_COLORS.Info
 	toast.BackgroundTransparency = 1
 	toast.TextTransparency = 1

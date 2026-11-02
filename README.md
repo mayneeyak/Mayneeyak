@@ -73,4 +73,4 @@ Keep droppers to the left of (lower X than) the upgraders so drops pass through 
 | `standalone/TycoonServer.server.lua` | **Script** | ServerScriptService |
 | `standalone/TycoonHUD.client.lua` | **LocalScript** | StarterPlayer → StarterPlayerScripts |
 
-These are generated from the files in `src/`; if you change `src/`, update them too.
+These are written in plain Lua 5.1 (no type annotations or `+=`), so they also run in editors like Studio Lite. They are generated from the files in `src/`; if you change `src/`, update them too.

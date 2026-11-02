@@ -21,23 +21,27 @@ local TycoonService = {}
 local Layout = Config.Layout
 
 local plots = {}
-local plotByPlayer: { [Player]: any } = {}
+local plotByPlayer = {}
 local itemsById = {}
-local notifyRemote: RemoteEvent
+local notifyRemote
 
-for _, item in Config.Items do
+-- [dropPart] = { Value = number, Collected = bool, Upgraded = { [itemId] = true } }
+-- Weak keys so destroyed drops get cleaned up automatically.
+local dropInfo = setmetatable({}, { __mode = "k" })
+
+for _, item in ipairs(Config.Items) do
 	assert(itemsById[item.Id] == nil, "Duplicate tycoon item Id: " .. item.Id)
 	itemsById[item.Id] = item
 end
 
 -- Helpers ---------------------------------------------------------------------
 
-local function makePart(parent: Instance, props): Part
+local function makePart(parent, props)
 	local part = Instance.new("Part")
 	part.Anchored = true
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
-	for key, value in props do
+	for key, value in pairs(props) do
 		part[key] = value
 	end
 	part.Parent = parent
@@ -45,17 +49,17 @@ local function makePart(parent: Instance, props): Part
 end
 
 -- CFrame of a point relative to the plot's floor centre.
-local function at(plot, x: number, y: number, z: number): CFrame
+local function at(plot, x, y, z)
 	return plot.CFrame * CFrame.new(x, y, z)
 end
 
-local function notify(player: Player, message: string, kind: string?)
+local function notify(player, message, kind)
 	notifyRemote:FireClient(player, message, kind or "Info")
 end
 
-local function addLabel(parent: Instance, text: string): TextLabel
+local function addLabel(parent, text)
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
+	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
 	label.TextScaled = true
 	label.Font = Enum.Font.FredokaOne
@@ -68,7 +72,7 @@ end
 
 -- Drops -----------------------------------------------------------------------
 
-local function spawnDrop(plot, item, spawnCFrame: CFrame)
+local function spawnDrop(plot, item, spawnCFrame)
 	if #plot.Drops:GetChildren() >= Config.MaxDropsPerPlot then
 		return
 	end
@@ -81,7 +85,7 @@ local function spawnDrop(plot, item, spawnCFrame: CFrame)
 		Color = item.DropColor or Color3.new(0.5, 0.5, 0.5),
 		Material = Enum.Material.SmoothPlastic,
 	})
-	drop:SetAttribute("Value", item.DropValue)
+	dropInfo[drop] = { Value = item.DropValue, Collected = false, Upgraded = {} }
 
 	-- Keep drop physics on the server so clients can't fling them around.
 	pcall(function()
@@ -95,7 +99,7 @@ end
 
 local builders = {}
 
-function builders.Dropper(plot, item, model: Model)
+function builders.Dropper(plot, item, model)
 	local z = Layout.ConveyorZ
 	local x = item.X
 
@@ -136,12 +140,12 @@ function builders.Dropper(plot, item, model: Model)
 	end)
 end
 
-function builders.Upgrader(plot, item, model: Model)
+function builders.Upgrader(plot, item, model)
 	local z = Layout.ConveyorZ
 	local x = item.X
 	local frameColor = Color3.fromRGB(45, 45, 45)
 
-	for _, side in { -1, 1 } do
+	for _, side in ipairs({ -1, 1 }) do
 		makePart(model, {
 			Name = "Post",
 			Size = Vector3.new(1, 6, 1),
@@ -169,20 +173,20 @@ function builders.Upgrader(plot, item, model: Model)
 	})
 	model.PrimaryPart = field
 
-	local flag = "Upgraded_" .. item.Id
 	field.Touched:Connect(function(hit)
-		if hit.Parent ~= plot.Drops or hit:GetAttribute(flag) then
+		local info = dropInfo[hit]
+		if not info or hit.Parent ~= plot.Drops or info.Upgraded[item.Id] then
 			return
 		end
-		hit:SetAttribute(flag, true)
-		hit:SetAttribute("Value", (hit:GetAttribute("Value") or 0) * item.Multiplier)
+		info.Upgraded[item.Id] = true
+		info.Value = info.Value * item.Multiplier
 		hit.Color = item.Color
 		hit.Material = Enum.Material.Neon
 	end)
 end
 
-function builders.Decor(plot, item, model: Model)
-	for index, spec in item.Parts do
+function builders.Decor(plot, item, model)
+	for index, spec in ipairs(item.Parts) do
 		makePart(model, {
 			Name = "Part" .. index,
 			Size = spec.Size,
@@ -208,7 +212,7 @@ end
 
 -- Buttons ---------------------------------------------------------------------
 
-local function createButton(plot, item, index: number): BasePart
+local function createButton(plot, item, index)
 	local x = Layout.ButtonStartX + (index - 1) * Layout.ButtonSpacing
 	local button = makePart(plot.ButtonFolder, {
 		Name = item.Id .. "Button",
@@ -219,7 +223,7 @@ local function createButton(plot, item, index: number): BasePart
 	})
 
 	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromScale(7, 2.5)
+	billboard.Size = UDim2.new(7, 0, 2.5, 0)
 	billboard.StudsOffset = Vector3.new(0, 3, 0)
 	billboard.MaxDistance = 80
 	billboard.Parent = button
@@ -253,7 +257,7 @@ end
 -- Shows buttons whose requirement is met and that aren't owned yet.
 local function refreshButtons(plot)
 	local owner = plot.Owner
-	for index, item in Config.Items do
+	for index, item in ipairs(Config.Items) do
 		local shouldShow = owner ~= nil
 			and not DataService.Owns(owner, item.Id)
 			and (item.Requires == nil or DataService.Owns(owner, item.Requires))
@@ -270,7 +274,7 @@ end
 
 -- Plot base -------------------------------------------------------------------
 
-local function buildPlot(parent: Instance, index: number)
+local function buildPlot(parent, index)
 	local offsetX = (index - 1 - (Config.PlotCount - 1) / 2) * Config.PlotSpacing
 	local plot = {
 		Index = index,
@@ -305,10 +309,15 @@ local function buildPlot(parent: Instance, index: number)
 		Color = Color3.fromRGB(40, 40, 40),
 		Material = Enum.Material.DiamondPlate,
 	})
-	conveyor.AssemblyLinearVelocity = plot.CFrame.RightVector * Config.ConveyorSpeed
+	local beltVelocity = plot.CFrame.RightVector * Config.ConveyorSpeed
+	if not pcall(function()
+		conveyor.AssemblyLinearVelocity = beltVelocity
+	end) then
+		conveyor.Velocity = beltVelocity -- older API name
+	end
 
 	local halfWidth = Layout.ConveyorWidth / 2
-	for _, side in { -1, 1 } do
+	for _, side in ipairs({ -1, 1 }) do
 		makePart(model, {
 			Name = "Rail",
 			Size = Vector3.new(length, 2.5, 0.5),
@@ -327,13 +336,14 @@ local function buildPlot(parent: Instance, index: number)
 		Material = Enum.Material.Neon,
 	})
 	collector.Touched:Connect(function(hit)
-		if hit.Parent ~= plot.Drops or hit:GetAttribute("Collected") then
+		local info = dropInfo[hit]
+		if not info or hit.Parent ~= plot.Drops or info.Collected then
 			return
 		end
-		hit:SetAttribute("Collected", true)
+		info.Collected = true
 		local owner = plot.Owner
 		if owner then
-			DataService.AddCash(owner, hit:GetAttribute("Value") or 0)
+			DataService.AddCash(owner, info.Value)
 		end
 		hit:Destroy()
 	end)
@@ -346,17 +356,16 @@ local function buildPlot(parent: Instance, index: number)
 		Color = Color3.fromRGB(30, 30, 30),
 	})
 	local signLabels = {}
-	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
 		local surface = Instance.new("SurfaceGui")
 		surface.Face = face
-		surface.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-		surface.PixelsPerStud = 25
+		surface.CanvasSize = Vector2.new(600, 150)
 		surface.Parent = sign
 		table.insert(signLabels, addLabel(surface, ""))
 	end
 	plot.SignLabels = signLabels
 
-	local function folder(name: string): Folder
+	local function folder(name)
 		local f = Instance.new("Folder")
 		f.Name = name
 		f.Parent = model
@@ -369,8 +378,8 @@ local function buildPlot(parent: Instance, index: number)
 	return plot
 end
 
-local function setSignText(plot, text: string)
-	for _, label in plot.SignLabels do
+local function setSignText(plot, text)
+	for _, label in ipairs(plot.SignLabels) do
 		label.Text = text
 	end
 end
@@ -396,13 +405,13 @@ function TycoonService.Init()
 	end
 end
 
-function TycoonService.AssignPlot(player: Player)
+function TycoonService.AssignPlot(player)
 	if plotByPlayer[player] then
 		return plotByPlayer[player]
 	end
 
 	local plot = nil
-	for _, candidate in plots do
+	for _, candidate in ipairs(plots) do
 		if not candidate.Owner then
 			plot = candidate
 			break
@@ -414,12 +423,12 @@ function TycoonService.AssignPlot(player: Player)
 	end
 
 	plot.Owner = player
-	plot.Session += 1
+	plot.Session = plot.Session + 1
 	plotByPlayer[player] = plot
 	setSignText(plot, player.DisplayName .. "'s Tycoon")
 
 	-- Rebuild everything the player already owns.
-	for _, item in Config.Items do
+	for _, item in ipairs(Config.Items) do
 		if DataService.Owns(player, item.Id) then
 			buildItem(plot, item)
 		end
@@ -429,14 +438,14 @@ function TycoonService.AssignPlot(player: Player)
 	-- Spawn the player at their plot.
 	local spawnPosition = at(plot, Config.SpawnOffset.X, Config.SpawnOffset.Y, Config.SpawnOffset.Z).Position
 	-- Face toward the back of the plot (the production line).
-	local spawnCFrame = CFrame.lookAt(spawnPosition, spawnPosition + plot.CFrame.LookVector)
-	local function onCharacter(character: Model)
+	local spawnCFrame = CFrame.new(spawnPosition, spawnPosition + plot.CFrame.LookVector)
+	local function onCharacter(character)
 		local root = character:WaitForChild("HumanoidRootPart", 10)
 		if not root or plot.Owner ~= player then
 			return
 		end
 		task.wait() -- let the default spawn placement finish first
-		character:PivotTo(spawnCFrame)
+		root.CFrame = spawnCFrame
 	end
 	plot.CharacterConn = player.CharacterAdded:Connect(onCharacter)
 	if player.Character then
@@ -447,14 +456,14 @@ function TycoonService.AssignPlot(player: Player)
 	return plot
 end
 
-function TycoonService.ReleasePlot(player: Player)
+function TycoonService.ReleasePlot(player)
 	local plot = plotByPlayer[player]
 	if not plot then
 		return
 	end
 	plotByPlayer[player] = nil
 
-	plot.Session += 1 -- stops dropper loops
+	plot.Session = plot.Session + 1 -- stops dropper loops
 	plot.Owner = nil
 	if plot.CharacterConn then
 		plot.CharacterConn:Disconnect()
@@ -464,11 +473,11 @@ function TycoonService.ReleasePlot(player: Player)
 	plot.Items:ClearAllChildren()
 	plot.ButtonFolder:ClearAllChildren()
 	plot.Drops:ClearAllChildren()
-	table.clear(plot.Buttons)
+	plot.Buttons = {}
 	setSignText(plot, "Unclaimed")
 end
 
-function TycoonService.TryPurchase(player: Player, itemId: string): boolean
+function TycoonService.TryPurchase(player, itemId)
 	local plot = plotByPlayer[player]
 	local item = itemsById[itemId]
 	if not plot or not item then

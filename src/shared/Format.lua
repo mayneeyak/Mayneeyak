@@ -9,7 +9,7 @@ local Format = {}
 
 local SUFFIXES = { "", "K", "M", "B", "T", "Qd", "Qn" }
 
-function Format.number(n: number): string
+function Format.number(n)
 	n = math.floor(n)
 	if math.abs(n) < 1000 then
 		return tostring(n)
@@ -18,8 +18,8 @@ function Format.number(n: number): string
 	local value = n
 	local index = 1
 	while math.abs(value) >= 1000 and index < #SUFFIXES do
-		value /= 1000
-		index += 1
+		value = value / 1000
+		index = index + 1
 	end
 
 	-- "1.0K" -> "1K"
@@ -27,7 +27,7 @@ function Format.number(n: number): string
 	return (text:gsub("%.0(%a)", "%1"))
 end
 
-function Format.cash(n: number): string
+function Format.cash(n)
 	return "$" .. Format.number(n)
 end
 
