@@ -393,7 +393,9 @@ class Film:
             film.cycles.use_denoising = True
             film.cycles.denoising_quality = "FAST" if not final else "HIGH"
             film.cycles.denoising_prefilter = "NONE" if not final else "ACCURATE"
-            film.render.use_persistent_data = True  # reuse scene data between frames
+            # Note: use_persistent_data is left off on purpose. It made animated objects
+            # (the shaken tree top) render black partway through the film.
+            film.render.use_persistent_data = False
         else:
             film.render.engine = "BLENDER_EEVEE"
             try:
