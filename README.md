@@ -74,3 +74,7 @@ Keep droppers to the left of (lower X than) the upgraders so drops pass through 
 | `standalone/TycoonHUD.client.lua` | **LocalScript** | StarterPlayer → StarterPlayerScripts |
 
 These are written in plain Lua 5.1 (no type annotations or `+=`), so they also run in editors like Studio Lite. They are generated from the files in `src/`; if you change `src/`, update them too.
+
+## Other projects in this repo
+
+- [`animations/`](animations/README.md): code-only character animations (moves panel + dancing NPC).
