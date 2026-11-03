@@ -101,7 +101,7 @@ async function send(cfg, cmd) {
       const res = await http("POST", url, { token: cfg.token, body: r.body, timeout: attempt ? 6 : 3 });
       if (ok(res.status)) return { ok: true };
       if (res.status === 401 || res.status === 403) {
-        return { ok: false, msg: "The TV doesn't recognize this iPhone anymore. Tap the gear to pair again." };
+        return { ok: false, msg: "The TV doesn't recognize this iPhone anymore. Tap Pair to pair again." };
       }
       return { ok: false, msg: `The TV said no (error ${res.status}).` };
     } catch (e) {
@@ -210,200 +210,110 @@ async function settings(cfg) {
 }
 
 // --------------------------------------------------------------------------- the remote
+// Built with Scriptable's native table (UITable), so it looks and works like the rest of iOS.
 
-const ICONS = {
-  up: '<path d="M6 15l6-6 6 6"/>',
-  down: '<path d="M6 9l6 6 6-6"/>',
-  left: '<path d="M15 6l-6 6 6 6"/>',
-  right: '<path d="M9 6l6 6-6 6"/>',
-  back: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
-  home: '<path d="M3.5 11L12 3.5 20.5 11"/><path d="M6 9.5V20h12V9.5"/>',
-  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
-  play: '<path d="M4 5v14l9-7z" fill="currentColor"/><path d="M16 5v14M20 5v14"/>',
-  rew: '<path d="M11 6l-8 6 8 6zM21 6l-8 6 8 6z" fill="currentColor"/>',
-  ff: '<path d="M3 6l8 6-8 6zM13 6l8 6-8 6z" fill="currentColor"/>',
-  power: '<path d="M12 3v8"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/>',
-  gear:
-    '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
-};
+const T = "︎"; // shows ▲ ▶ etc. as plain symbols instead of emoji
 
-function icon(name) {
-  return `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+function buttonCell(label, size, onTap) {
+  const cell = UITableCell.button(label);
+  cell.titleFont = Font.boldSystemFont(size);
+  cell.centerAligned();
+  cell.dismissOnTap = false;
+  cell.onTap = onTap;
+  return cell;
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-}
-
-function page(cfg) {
-  const apps = APPS.map(
-    (a) => `<button class="app" data-cmd="app:${escapeHtml(a.id)}">${escapeHtml(a.name)}</button>`
-  ).join("");
-  return `<!doctype html>
-<html><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<style>
-  :root { --bg:#0e1014; --key:#22262e; --key-hi:#2e333d; --ring:#1a1d23; --text:#eef1f6; --dim:#8b93a3;
-          --accent:#4d8dff; --good:#3ecf74; --bad:#ff6b5e; }
-  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
-  html, body { margin:0; background:var(--bg); color:var(--text); height:100%;
-    font:16px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
-  body { display:flex; flex-direction:column; align-items:center; gap:22px; touch-action:manipulation;
-    padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 18px); overflow:hidden; }
-  button { font:inherit; color:inherit; border:0; background:var(--key); cursor:pointer;
-    display:grid; place-items:center; transition:transform .06s, background .06s; }
-  button.pressed { background:var(--key-hi); transform:scale(.94); }
-  svg { width:26px; height:26px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
-  header { width:100%; max-width:340px; display:flex; align-items:center; justify-content:space-between; }
-  .round { width:48px; height:48px; border-radius:50%; }
-  #power { color:var(--bad); }
-  .title { text-align:center; }
-  .title b { display:block; font-size:17px; letter-spacing:.2px; }
-  .title span { font-size:13px; color:var(--dim); display:inline-flex; align-items:center; gap:6px; }
-  #dot { width:8px; height:8px; border-radius:50%; background:var(--dim); transition:background .2s; }
-  #dot.good { background:var(--good); } #dot.bad { background:var(--bad); }
-  .pad { position:relative; width:min(78vw, 290px); aspect-ratio:1; border-radius:50%; background:var(--ring);
-    box-shadow:inset 0 0 0 1px #ffffff0d; }
-  .pad .arrow { position:absolute; background:transparent; width:34%; height:34%; border-radius:50%; color:var(--dim); }
-  .pad .arrow.pressed { color:var(--text); background:#ffffff10; }
-  .pad .up { top:0; left:33%; } .pad .down { bottom:0; left:33%; }
-  .pad .left { left:0; top:33%; } .pad .right { right:0; top:33%; }
-  .pad .ok { position:absolute; inset:31%; border-radius:50%; background:var(--key); font-weight:600; font-size:18px;
-    box-shadow:0 0 0 1px #ffffff12, 0 6px 18px #0007; }
-  .pad .ok.pressed { background:var(--accent); }
-  .row { display:flex; gap:26px; }
-  .row button { width:64px; height:64px; border-radius:50%; }
-  .apps { width:100%; max-width:340px; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .app { height:46px; border-radius:14px; font-size:15px; font-weight:600; }
-  #status { min-height:20px; font-size:14px; color:var(--dim); text-align:center; max-width:320px; }
-  #status.bad { color:var(--bad); }
-</style>
-</head><body>
-<header>
-  <button id="power" class="round" data-cmd="wake" aria-label="Wake TV">${icon("power")}</button>
-  <div class="title"><b>Fire TV</b><span><i id="dot"></i><span id="ip">${escapeHtml(cfg.ip)}</span></span></div>
-  <button class="round" data-cmd="settings" aria-label="Settings">${icon("gear")}</button>
-</header>
-
-<div class="pad">
-  <button class="arrow up" data-cmd="key:dpad_up" data-repeat aria-label="Up">${icon("up")}</button>
-  <button class="arrow left" data-cmd="key:dpad_left" data-repeat aria-label="Left">${icon("left")}</button>
-  <button class="arrow right" data-cmd="key:dpad_right" data-repeat aria-label="Right">${icon("right")}</button>
-  <button class="arrow down" data-cmd="key:dpad_down" data-repeat aria-label="Down">${icon("down")}</button>
-  <button class="ok" data-cmd="key:select" aria-label="Select">OK</button>
-</div>
-
-<div class="row">
-  <button data-cmd="key:back" aria-label="Back">${icon("back")}</button>
-  <button data-cmd="key:home" aria-label="Home">${icon("home")}</button>
-  <button data-cmd="key:menu" aria-label="Menu">${icon("menu")}</button>
-</div>
-
-<div class="row">
-  <button data-hold="scan:back" aria-label="Rewind">${icon("rew")}</button>
-  <button data-cmd="play" aria-label="Play or pause">${icon("play")}</button>
-  <button data-hold="scan:forward" aria-label="Fast forward">${icon("ff")}</button>
-</div>
-
-<div class="apps">${apps}</div>
-<div id="status">Ready</div>
-
-<script>
-  // Button presses go into a queue. The Scriptable side keeps asking for the next one
-  // (waitForCommand), sends it to the TV, and reports back through showResult.
-  var queue = [], waiting = null, idle = null;
-
-  function waitForCommand(done) {
-    waiting = done;
-    clearTimeout(idle);
-    // Answer "nothing yet" now and then so the Scriptable side never waits forever.
-    idle = setTimeout(function () { if (waiting === done) { waiting = null; done(null); } }, 15000);
-    pump();
-  }
-  function pump() {
-    if (waiting && queue.length) {
-      var done = waiting; waiting = null; clearTimeout(idle);
-      done(queue.shift());
-    }
-  }
-  function send(cmd, droppable) {
-    if (droppable && queue.length > 2) return; // don't pile up held-arrow repeats
-    queue.push(cmd);
-    pump();
-  }
-
-  var statusEl = document.getElementById("status"), dot = document.getElementById("dot"), flash = null;
-  function showResult(r) {
-    if (!r || r.quiet) return;
-    if (r.ip) document.getElementById("ip").textContent = r.ip;
-    dot.className = r.ok ? "good" : "bad";
-    clearTimeout(flash);
-    if (r.ok) flash = setTimeout(function () { dot.className = ""; }, 900);
-    if (r.msg || !r.ok) { statusEl.textContent = r.msg || "Something went wrong."; statusEl.className = r.ok ? "" : "bad"; }
-    else if (statusEl.className === "bad") { statusEl.textContent = "Ready"; statusEl.className = ""; }
-  }
-
-  // Press handling: tap to send, hold arrows to repeat, hold rewind/fast-forward to scan.
-  document.querySelectorAll("button").forEach(function (b) {
-    var repeat = null, holding = false;
-    function down(e) {
-      e.preventDefault();
-      b.classList.add("pressed");
-      if (b.dataset.hold) { holding = true; send(b.dataset.hold + ":down"); return; }
-      send(b.dataset.cmd);
-      if (b.hasAttribute("data-repeat")) {
-        repeat = setTimeout(function tick() { send(b.dataset.cmd, true); repeat = setTimeout(tick, 140); }, 420);
-      }
-    }
-    function up() {
-      b.classList.remove("pressed");
-      clearTimeout(repeat); repeat = null;
-      if (holding) { holding = false; send(b.dataset.hold + ":up"); }
-    }
-    b.addEventListener("pointerdown", down);
-    b.addEventListener("pointerup", up);
-    b.addEventListener("pointercancel", up);
-    b.addEventListener("pointerleave", up);
-    b.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-  });
-</script>
-</body></html>`;
+function blankCell() {
+  return UITableCell.text("");
 }
 
 async function runRemote(cfg) {
-  const view = new WebView();
-  await view.loadHTML(page(cfg));
-  let open = true;
-  const closed = view.present(false).then(() => {
-    open = false;
-    return null;
-  });
+  const table = new UITable();
+  table.showSeparators = false;
 
-  while (open) {
-    let cmd = null;
-    try {
-      cmd = await Promise.race([view.evaluateJavaScript("waitForCommand(completion)", true), closed]);
-    } catch (e) {
-      break;
-    }
-    if (!open) break;
-    if (!cmd) continue;
+  let status = "Ready";
+  let statusIsError = false;
+  let busy = Promise.resolve();
 
-    let result;
-    if (cmd === "settings") {
-      const updated = await settings(cfg);
-      if (updated) cfg = updated;
-      result = updated ? { ok: true, msg: `Paired with the TV at ${cfg.ip}`, ip: cfg.ip } : { ok: true, quiet: true };
-    } else {
-      result = await send(cfg, cmd);
-    }
-    try {
-      await view.evaluateJavaScript(`showResult(${JSON.stringify(result)})`, false);
-    } catch (e) {
-      // the remote was closed while the TV was answering
-    }
+  // Presses are sent one at a time, in the order you tap them.
+  function press(cmd) {
+    busy = busy.then(async () => {
+      let result;
+      if (cmd === "settings") {
+        const updated = await settings(cfg);
+        if (updated) cfg = updated;
+        result = updated ? { ok: true, msg: `Paired with the TV at ${cfg.ip}` } : null;
+      } else if (cmd.startsWith("tapscan:")) {
+        const dir = cmd.split(":")[1];
+        result = await send(cfg, `scan:${dir}:down`);
+        if (result.ok) {
+          await pause(350);
+          result = await send(cfg, `scan:${dir}:up`);
+        }
+      } else {
+        result = await send(cfg, cmd);
+      }
+      if (!result) return;
+      const nextStatus = result.msg || (result.ok ? "Ready" : "Something went wrong.");
+      if (nextStatus !== status || statusIsError === result.ok) {
+        status = nextStatus;
+        statusIsError = !result.ok;
+        build();
+        table.reload();
+      }
+    }).catch(() => {});
   }
+
+  function row(cells, height) {
+    const r = new UITableRow();
+    r.height = height;
+    r.cellSpacing = 10;
+    cells.forEach((c) => r.addCell(c));
+    table.addRow(r);
+  }
+
+  function build() {
+    table.removeAllRows();
+
+    const title = UITableCell.text("Fire TV", `TV at ${cfg.ip}`);
+    title.titleFont = Font.boldSystemFont(22);
+    title.centerAligned();
+    row([buttonCell("Wake", 17, () => press("wake")), title, buttonCell("Pair", 17, () => press("settings"))], 70);
+
+    row([blankCell(), buttonCell("▲" + T, 34, () => press("key:dpad_up")), blankCell()], 72);
+    row([
+      buttonCell("◀" + T, 34, () => press("key:dpad_left")),
+      buttonCell("OK", 30, () => press("key:select")),
+      buttonCell("▶" + T, 34, () => press("key:dpad_right")),
+    ], 80);
+    row([blankCell(), buttonCell("▼" + T, 34, () => press("key:dpad_down")), blankCell()], 72);
+
+    row([
+      buttonCell("Back", 19, () => press("key:back")),
+      buttonCell("Home", 19, () => press("key:home")),
+      buttonCell("Menu", 19, () => press("key:menu")),
+    ], 64);
+    row([
+      buttonCell("⏪" + T, 30, () => press("tapscan:back")),
+      buttonCell("⏯" + T, 30, () => press("play")),
+      buttonCell("⏩" + T, 30, () => press("tapscan:forward")),
+    ], 64);
+
+    for (let i = 0; i < APPS.length; i += 2) {
+      const pair = APPS.slice(i, i + 2).map((a) => buttonCell(a.name, 18, () => press(`app:${a.id}`)));
+      if (pair.length === 1) pair.push(blankCell());
+      row(pair, 56);
+    }
+
+    const s = UITableCell.text(status);
+    s.titleFont = Font.systemFont(15);
+    s.titleColor = statusIsError ? Color.red() : Color.gray();
+    s.centerAligned();
+    row([s], 60);
+  }
+
+  build();
+  await table.present(false);
 }
 
 // ------------------------------------------------------------------------------ start

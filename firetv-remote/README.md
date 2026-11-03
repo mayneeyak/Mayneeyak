@@ -5,11 +5,11 @@ that runs on your iPhone and talks to the TV over Wi-Fi. You don't need a Mac or
 it runs inside **Scriptable**, a free iPhone app that runs JavaScript.
 
 - **Power:** wakes up the TV's Wi-Fi remote service if it has gone to sleep. (It can't switch the TV off.)
-- **D-pad + OK:** hold an arrow to keep scrolling.
+- **Arrows + OK.**
 - **Back, Home, Menu.**
-- **Rewind, Play/Pause, Fast-forward:** hold rewind or fast-forward to keep scanning.
+- **Rewind, Play/Pause, Fast-forward.**
 - **App buttons:** Netflix, YouTube, Disney+ and Hulu. You can add your own.
-- **Gear:** pair again or switch to a different TV.
+- **Pair:** pair again or switch to a different TV.
 
 ## Set it up (about 3 minutes)
 
@@ -54,9 +54,9 @@ package name:
 
 - **"Can't reach the TV":** make sure the TV is on, the IP address is right, and your iPhone
   is on the same Wi-Fi (not on cellular data). The IP address can change after a router restart:
-  tap the gear and enter the new one. Giving the TV a fixed IP address in your router
+  tap **Pair** and enter the new one. Giving the TV a fixed IP address in your router
   settings stops that from happening.
-- **"The TV doesn't recognize this iPhone":** tap the gear and pair again.
+- **"The TV doesn't recognize this iPhone":** tap **Pair** and pair again.
 - **Start over completely:** change `const RESET = false;` to `true`, run the script once,
   then change it back.
 
