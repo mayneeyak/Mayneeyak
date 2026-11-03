@@ -28,18 +28,35 @@ def _bsdf(mat):
     return mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
 
 
-def material(name, base, roughness=0.55, metallic=0.0, glow=0.0):
-    """A plastic-looking material. glow > 0 makes it light up (bulbs, screens)."""
+def _set(bsdf, name, value):
+    if name in bsdf.inputs:
+        bsdf.inputs[name].default_value = value
+
+
+def material(name, base, roughness=0.55, metallic=0.0, glow=0.0, sheen=0.0, coat=0.0,
+             transmission=0.0, subsurface=0.0):
+    """A material. glow lights it up (bulbs, screens), sheen = soft cloth, coat = glossy
+    varnish, transmission = see-through (candy, glass), subsurface = soft skin."""
     if name in bpy.data.materials:
         return bpy.data.materials[name]
     rgb = color(base)
     mat = bpy.data.materials.new(name)
     bsdf = _bsdf(mat)
-    bsdf.inputs["Base Color"].default_value = (*rgb, 1.0)
-    bsdf.inputs["Roughness"].default_value = roughness
-    bsdf.inputs["Metallic"].default_value = metallic
+    _set(bsdf, "Base Color", (*rgb, 1.0))
+    _set(bsdf, "Roughness", roughness)
+    _set(bsdf, "Metallic", metallic)
     if glow > 0:
-        bsdf.inputs["Emission Color"].default_value = (*rgb, 1.0)
-        bsdf.inputs["Emission Strength"].default_value = glow
+        _set(bsdf, "Emission Color", (*rgb, 1.0))
+        _set(bsdf, "Emission Strength", glow)
+    if sheen > 0:
+        _set(bsdf, "Sheen Weight", sheen)
+    if coat > 0:
+        _set(bsdf, "Coat Weight", coat)
+    if transmission > 0:
+        _set(bsdf, "Transmission Weight", transmission)
+    if subsurface > 0:
+        _set(bsdf, "Subsurface Weight", subsurface)
+        _set(bsdf, "Subsurface Radius", (0.9, 0.35, 0.2))
+        _set(bsdf, "Subsurface Scale", 0.01)
     mat.diffuse_color = (*rgb, 1.0)  # color in the viewport
     return mat

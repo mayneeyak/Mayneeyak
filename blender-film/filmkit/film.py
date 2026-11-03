@@ -5,7 +5,7 @@ import os
 from contextlib import contextmanager
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from .camera import CameraRig
 from .materials import color
@@ -41,11 +41,14 @@ class Film:
         self._block_start = 0.0
 
         self._subtitles = []
+        self._captions = []
         self._titles = []
         self._credits = []
         self._fade_keys = []
         self._fade_level = 0.0
         self._sounds = []
+        self._attachments = {}  # prop -> list of [character, hand, start, end]
+        self._base_scale = {}
 
         self._setup_world()
         self.camera = CameraRig(self)
@@ -217,21 +220,21 @@ class Film:
         self._fade_level = 1.0
         self._fade_keys.append((t, 1.0))
 
-    def _fade_to(self, level, seconds, wait):
-        t = self._start("film")
+    def _fade_to(self, level, seconds, wait, delay=0.0):
+        t = self._start("film") + delay
         self._fade_keys.append((t, self._fade_level))
         self._fade_level = level
         self._fade_keys.append((t + seconds, level))
         if wait:
             self._end("film", t + seconds)
 
-    def fade_in(self, seconds=1.0, wait=False):
+    def fade_in(self, seconds=1.0, wait=False, delay=0.0):
         """From black to the picture."""
-        self._fade_to(0.0, seconds, wait)
+        self._fade_to(0.0, seconds, wait, delay)
 
-    def fade_out(self, seconds=1.0, wait=True):
+    def fade_out(self, seconds=1.0, wait=True, delay=0.0):
         """From the picture to black."""
-        self._fade_to(1.0, seconds, wait)
+        self._fade_to(1.0, seconds, wait, delay)
 
     def title(self, text, small_text="", seconds=3.0):
         """A title card on black (waits until it's done)."""
@@ -246,7 +249,60 @@ class Film:
         self._end("film", t + seconds)
 
     def _subtitle(self, start, end, name, text):
-        self._subtitles.append((start, end, f"{name}: {text}"))
+        self._subtitles.append((start, end, f"{name}: {text}" if name else text))
+
+    def caption(self, text, seconds=3.0, wait=False):
+        """Narration text at the bottom of the screen (no speaker name)."""
+        t = self._start("film")
+        self._captions.append((t, t + seconds, text))
+        if wait:
+            self._end("film", t + seconds)
+
+    # ---------------------------------------------------- props in hands
+
+    def _holder(self, obj):
+        segments = self._attachments.get(obj)
+        if segments and segments[-1][3] is None:
+            return segments[-1][0]
+        return None
+
+    def _attach(self, obj, char, hand, t):
+        segments = self._attachments.setdefault(obj, [])
+        if segments and segments[-1][3] is None:
+            segments[-1][3] = t
+        segments.append([char, hand, t, None])
+        self._set_visible(obj, True, t)
+
+    def _release(self, obj, t):
+        segments = self._attachments.get(obj)
+        if segments and segments[-1][3] is None:
+            segments[-1][3] = t
+
+    def _set_visible(self, obj, visible, t):
+        base = self._base_scale.setdefault(obj.name, tuple(obj.scale) if any(obj.scale) else (1, 1, 1))
+        with self.constant_keys():
+            obj.scale = base if visible else (0, 0, 0)
+            obj.keyframe_insert("scale", frame=self.frame(t))
+
+    def _hide_at(self, obj, t):
+        self._release(obj, t)
+        self._set_visible(obj, False, t)
+
+    def hide(self, obj):
+        """Makes a prop disappear now (it also stops following any hand)."""
+        self._hide_at(obj, self.now())
+
+    def show(self, obj):
+        """Makes a hidden prop appear now."""
+        self._set_visible(obj, True, self.now())
+
+    def grow(self, obj, scale, seconds=0.5, delay=0.0):
+        """Smoothly changes a prop's size (e.g. a growing pile of money). Doesn't move the clock."""
+        t = self.now() + delay
+        obj.keyframe_insert("scale", frame=self.frame(t))
+        obj.scale = (scale, scale, scale) if isinstance(scale, (int, float)) else scale
+        obj.keyframe_insert("scale", frame=self.frame(t + seconds))
+        self._base_scale[obj.name] = tuple(obj.scale)
 
     def music(self, path, volume=0.7, start=None):
         """Adds a sound or music file (mp3/wav/ogg) starting now (or at `start` seconds)."""
@@ -263,14 +319,48 @@ class Film:
         self.frame_end = frame_end
         self.scene.frame_start, self.scene.frame_end = 1, frame_end
         for char in self.characters:
-            char._add_blinks(self.t)
-        self.camera.bake(frame_end)
+            char._add_life(self.t)
+        self.camera.bake(frame_end, on_frame=self._bake_frame)
         self.scene.frame_set(1)
         self._build_edit(frame_end)
         try:
             bpy.context.window.scene = self.scene
         except (AttributeError, TypeError):
             pass
+
+    def _bake_frame(self, frame):
+        """Runs once per frame while baking: props follow hands, springy parts swing."""
+        t = (frame - 1) / self.fps
+        with self.constant_keys():
+            for obj, segments in self._attachments.items():
+                for char, hand, start, end in segments:
+                    if start <= t and (end is None or t < end):
+                        m = char.grip[hand].matrix_world
+                        obj.location = m.translation
+                        obj.rotation_euler = m.to_3x3().normalized().to_euler()
+                        obj.keyframe_insert("location", frame=frame)
+                        obj.keyframe_insert("rotation_euler", frame=frame)
+                        break
+        dt = 1.0 / self.fps
+        down = Vector((0, 0, -1))
+        for char in self.characters:
+            for spring in char.springs:
+                pivot = spring["pivot"]
+                parent = pivot.parent.matrix_world
+                rot = parent.to_3x3().normalized()
+                origin = parent @ pivot.location
+                rest = (rot @ down * 0.35 + down * 0.65).normalized()
+                target = origin + rest * spring["length"]
+                if "tip" not in spring:
+                    spring["tip"], spring["vel"] = target.copy(), Vector((0, 0, 0))
+                acc = (target - spring["tip"]) * spring["stiffness"] - spring["vel"] * spring["damping"]
+                spring["vel"] += acc * dt
+                tip = spring["tip"] + spring["vel"] * dt
+                spring["tip"] = origin + (tip - origin).normalized() * spring["length"]
+                local = rot.inverted() @ (spring["tip"] - origin).normalized()
+                pivot.rotation_mode = "QUATERNION"
+                pivot.rotation_quaternion = down.rotation_difference(local)
+                pivot.keyframe_insert("rotation_quaternion", frame=frame)
 
     def _load_font(self):
         path = self.font_path or os.path.join(bpy.utils.system_resource("DATAFILES"), "fonts", "Inter.woff2")
@@ -341,6 +431,12 @@ class Film:
                 sub.use_box = True
                 sub.box_color = (0, 0, 0, 0.45) if len(sub.box_color) == 4 else (0, 0, 0)
 
+        for start, end, body in self._captions:
+            cap = text(7, start, end, body, int(height * 0.05), 0.9, "Caption", fade=min(0.4, (end - start) / 4))
+            if hasattr(cap, "use_box"):
+                cap.use_box = True
+                cap.box_color = (0, 0, 0, 0.55) if len(cap.box_color) == 4 else (0, 0, 0)
+
         for start, end, big, small in self._titles:
             black_card(8, start, end, "TitleCard")
             text(9, start, end, big, int(height * 0.11), 0.55, "Title", fade=min(0.6, (end - start) / 3))
@@ -387,9 +483,14 @@ class Film:
             addon_utils.enable("cycles", default_set=True)
             film.render.engine = "CYCLES"
             film.cycles.device = "CPU"
-            film.cycles.samples = 128 if final else 16
+            film.cycles.samples = 128 if final else 8
             film.cycles.use_adaptive_sampling = True
-            film.cycles.max_bounces = 6 if final else 3
+            film.cycles.max_bounces = 6 if final else 2
+            if not final:
+                film.cycles.diffuse_bounces, film.cycles.glossy_bounces = 1, 1
+                film.cycles.transmission_bounces, film.cycles.transparent_max_bounces = 2, 4
+                film.cycles.blur_glossy = 1.0
+                film.cycles.caustics_reflective = film.cycles.caustics_refractive = False
             film.cycles.use_denoising = True
             film.cycles.denoising_quality = "FAST" if not final else "HIGH"
             film.cycles.denoising_prefilter = "NONE" if not final else "ACCURATE"

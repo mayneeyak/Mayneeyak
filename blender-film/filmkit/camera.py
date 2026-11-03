@@ -76,21 +76,41 @@ class CameraRig:
         a = math.radians(degrees)
         return Vector((vec.x * math.cos(a) - vec.y * math.sin(a), vec.x * math.sin(a) + vec.y * math.cos(a), vec.z))
 
-    def close_up(self, char, angle=0, distance=2.3, lens=45, duration=0, delay=0.0):
-        """Face fills the frame. angle swings the camera around the character (degrees)."""
-        head = char.head_position()
-        d = self._rotate(char.forward(), angle)
-        self._shot(head + d * distance + Vector((0, 0, 0.05)), head, lens, duration, delay)
+    @staticmethod
+    def _size(char):
+        """(height, head radius) of a character in meters, works for old and new characters."""
+        height = char.height() if hasattr(char, "height") else 1.75 * char.scale
+        head = getattr(char, "hr", 0.27) * char.scale
+        return height, head
 
-    def medium(self, char, angle=0, distance=3.4, lens=40, duration=0, delay=0.0):
-        """Waist up."""
-        chest = char.position() + Vector((0, 0, 1.05 * char.scale))
+    def close_up(self, char, angle=0, distance=None, lens=45, duration=0, delay=0.0):
+        """Head and shoulders. angle swings the camera around the character (degrees)."""
+        height, head_r = self._size(char)
+        head = char.head_position() - Vector((0, 0, head_r * 0.25))
+        distance = distance or head_r * 8.0
         d = self._rotate(char.forward(), angle)
-        self._shot(chest + d * distance + Vector((0, 0, 0.2)), chest, lens, duration, delay)
+        self._shot(head + d * distance + Vector((0, 0, head_r * 0.15)), head, lens, duration, delay)
+
+    def medium(self, char, angle=0, distance=None, lens=40, duration=0, delay=0.0):
+        """Waist up."""
+        height, _ = self._size(char)
+        chest = char.position() + Vector((0, 0, height * 0.68))
+        distance = distance or height * 1.7
+        d = self._rotate(char.forward(), angle)
+        self._shot(chest + d * distance + Vector((0, 0, height * 0.08)), chest, lens, duration, delay)
+
+    def hero(self, char, angle=25, distance=None, lens=28, duration=0, delay=0.0):
+        """Low angle looking up at a character: makes them look big and important."""
+        height, _ = self._size(char)
+        distance = distance or height * 2.0
+        d = self._rotate(char.forward(), angle)
+        target = char.position() + Vector((0, 0, height * 0.72))
+        self._shot(char.position() + d * distance + Vector((0, 0, height * 0.18)), target, lens, duration, delay)
 
     def two_shot(self, a, b, side=None, lens=35, duration=0, delay=0.0):
         """Both characters side by side in frame."""
         pa, pb = a.position(), b.position()
+        ha, hb = self._size(a)[0], self._size(b)[0]
         mid = (pa + pb) / 2
         diff = pb - pa
         direction = diff.normalized() if diff.length > 1e-3 else Vector((1, 0, 0))
@@ -99,16 +119,20 @@ class CameraRig:
             perp *= side
         elif perp.y > 0:
             perp = -perp  # default: film from the front (-Y) side
-        distance = max(3.6, diff.length * 1.5)
-        self._shot(mid + perp * distance + Vector((0, 0, 1.35)), mid + Vector((0, 0, 1.1)), lens, duration, delay)
+        tall = max(ha, hb)
+        distance = max(tall * 2.2, diff.length * 1.6)
+        look = mid + Vector((0, 0, tall * 0.72))
+        self._shot(mid + perp * distance + Vector((0, 0, tall * 0.85)), look, lens, duration, delay)
 
-    def over_shoulder(self, from_char, to_char, lens=45, duration=0, delay=0.0):
+    def over_shoulder(self, from_char, to_char, lens=40, duration=0, delay=0.0):
         """Behind one character's shoulder, looking at the other."""
         pf = from_char.position()
+        h, head_r = self._size(from_char)
         d = (to_char.position() - pf).normalized()
         right = Vector((-d.y, d.x, 0)) * -1
-        pos = pf - d * 1.7 + right * 0.7 + Vector((0, 0, 1.55 * from_char.scale))
-        self._shot(pos, to_char.head_position(), lens, duration, delay)
+        pos = pf - d * (h * 0.85) + right * (h * 0.32) + Vector((0, 0, h * 0.92))
+        th, thr = self._size(to_char)
+        self._shot(pos, to_char.head_position() - Vector((0, 0, thr * 0.6)), lens, duration, delay)
 
     def wide(self, center, distance=14, height=4, angle=0, lens=30, duration=0, delay=0.0):
         """Shows the whole scene. angle swings around the center (0 = from the front)."""
@@ -118,12 +142,13 @@ class CameraRig:
 
     # -------------------------------------------------------------------- bake
 
-    def bake(self, frame_end):
-        """Turns all camera events into one keyframe per frame."""
+    def bake(self, frame_end, on_frame=None):
+        """Turns all camera events into one keyframe per frame. on_frame(frame) runs after each frame
+        is evaluated (used to bake props and springy parts in the same pass)."""
         scene, fps = self.film.scene, self.film.fps
         events = sorted((e for e in self.events if e["kind"] != "shake"), key=lambda e: (e["t"], e["order"]))
         shakes = [e for e in self.events if e["kind"] == "shake"]
-        needs_frame_set = any(e["kind"] == "follow" for e in events)
+        needs_frame_set = on_frame is not None or any(e["kind"] == "follow" for e in events)
         if not events:
             events = [dict(kind="cut", t=0, pos=Vector((0, -12, 3)), target=Vector((0, 0, 1)), lens=35)]
 
@@ -141,6 +166,8 @@ class CameraRig:
                     current["from"] = state
                 if needs_frame_set:
                     scene.frame_set(frame)
+                    if on_frame is not None:
+                        on_frame(frame)
                 state = self._evaluate(current, t, state)
                 pos, target, lens = state
 

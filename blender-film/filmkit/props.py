@@ -12,7 +12,7 @@ from . import shapes
 from .materials import material
 
 
-def ground(film, size=80, color="#5fa84a"):
+def ground(film, size=80, color="#79a35a"):
     return shapes.box(film, "Ground", (size, size, 0.2), (0, 0, -0.1), mat=material("grass", color, 0.9))
 
 
@@ -119,3 +119,61 @@ def rock(film, x, y, size=0.5, color="#8a8a8a"):
     for poly in obj.data.polygons:
         poly.use_smooth = False
     return obj
+
+
+# ---------------------------------------------------------------- small props
+
+CANDY_FLAVORS = {"cherry": "#d81b3a", "watermelon": "#ff4f7b", "blue raspberry": "#1e88e5", "grape": "#7b2fbf",
+                 "green apple": "#43c74f", "sour apple": "#43c74f"}
+
+
+def candy(film, flavor="cherry", location=(0, 0, 0), size=1.0):
+    """A hard candy in a clear twisted wrapper. Returns the candy (move/hold it as one piece)."""
+    col = CANDY_FLAVORS.get(flavor, flavor)
+    body = shapes.box(film, f"Candy_{flavor}", (0.05 * size, 0.026 * size, 0.012 * size), location,
+                      mat=material(f"candy_{col}", col, 0.08, coat=1.0, transmission=0.35), bevel=0.005 * size)
+    wrap = material("wrapper", "#f4f4f4", 0.2, coat=0.6)
+    for sx in (-1, 1):
+        shapes.cylinder(film, "Twist", 0.012 * size, 0.022 * size, (sx * 0.034 * size, 0, 0),
+                        (0, sx * math.pi / 2, 0), mat=wrap, parent=body, top_radius=0.002 * size, segments=8)
+    return body
+
+
+def cash(film, location=(0, 0, 0), size=1.0):
+    """A folded dollar bill."""
+    bill = shapes.box(film, "Cash", (0.075 * size, 0.035 * size, 0.008 * size), location,
+                      mat=material("dollar", "#7fae6a", 0.75), bevel=0.002 * size)
+    shapes.box(film, "CashMark", (0.022 * size, 0.036 * size, 0.009 * size), (0, 0, 0),
+               mat=material("dollar_dark", "#4f7a41", 0.75), parent=bill)
+    return bill
+
+
+def cash_pile(film, x, y, z=0.0, bundles=12, seed=3):
+    """A pile of bundled cash. Returns its base (an empty) so you can make it grow: film.grow(pile, 1.6)."""
+    import random
+    rng = random.Random(seed)
+    base = shapes.empty(film, "CashPile", (x, y, z))
+    green = material("dollar", "#7fae6a", 0.75)
+    band = material("cash_band", "#e8d9a8", 0.6)
+    for i in range(bundles):
+        layer = i // 5
+        a = rng.uniform(0, 2 * math.pi)
+        r = rng.uniform(0, 0.12) if layer == 0 else rng.uniform(0, 0.07)
+        bx, by = math.cos(a) * r, math.sin(a) * r
+        bz = 0.022 + layer * 0.04
+        rot = (0, 0, rng.uniform(-0.6, 0.6))
+        b = shapes.box(film, "Bundle", (0.155, 0.068, 0.04), (bx, by, bz), rot, mat=green, parent=base, bevel=0.003)
+        shapes.box(film, "Band", (0.03, 0.07, 0.042), (0, 0, 0), mat=band, parent=b)
+    return base
+
+
+def crate(film, x, y, color="#2e6fd1", rotation=0):
+    """A milk crate (good for sitting on). Top is 0.33 m high."""
+    base = shapes.empty(film, "Crate", (x, y, 0))
+    base.rotation_euler = (0, 0, math.radians(rotation))
+    m = material(f"crate_{color}", color, 0.5, coat=0.2)
+    shapes.box(film, "CrateBox", (0.42, 0.42, 0.33), (0, 0, 0.165), mat=m, parent=base, bevel=0.015)
+    dark = material(f"crate_slot_{color}", "#1b1b1b", 0.8)
+    for sx in (-0.11, 0.0, 0.11):
+        shapes.box(film, "Slot", (0.05, 0.43, 0.16), (sx, 0, 0.17), mat=dark, parent=base)
+    return base
