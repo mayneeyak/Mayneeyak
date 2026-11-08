@@ -1,0 +1,12 @@
+{
+  "name": "pact-escrow",
+  "version": "1.0.0",
+  "description": "Two-party escrow: a temporary encrypted account only both parties can open, with creator-defined payout rules.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  }
+}
