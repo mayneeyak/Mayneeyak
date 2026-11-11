@@ -1,0 +1,1308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--HS-HEAD-START-->
+<title>Handwriting Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column like a notebook page; sticky tab strip; ruled-paper motifs only where writing happens. */
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --fg: #18203a;
+  --muted: #5b6684;
+  --line: #d6dce8;
+  --rule: #b9c9ea;
+  --margin-rule: #e7a3a3;
+  --accent: #2443b3;
+  --accent-fg: #ffffff;
+  --accent-soft: #e2e8fa;
+  --good: #1c7547; --good-soft: #def2e6;
+  --warn: #9a5a00; --warn-soft: #fbecd2;
+  --bad: #b02a22; --bad-soft: #f9e0dd;
+  --glyph-paper: #ffffff;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11152a; --surface: #1a2038; --fg: #e6e9f4; --muted: #9aa3c0; --line: #2d3555;
+    --rule: #3a4a78; --margin-rule: #8a4a55;
+    --accent: #8fa6ff; --accent-fg: #0f1430; --accent-soft: #263063;
+    --good: #6fd3a0; --good-soft: #173a2b; --warn: #f0b660; --warn-soft: #3d2e14;
+    --bad: #ff8f86; --bad-soft: #43201f; --glyph-paper: #eceff6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11152a; --surface: #1a2038; --fg: #e6e9f4; --muted: #9aa3c0; --line: #2d3555;
+  --rule: #3a4a78; --margin-rule: #8a4a55;
+  --accent: #8fa6ff; --accent-fg: #0f1430; --accent-soft: #263063;
+  --good: #6fd3a0; --good-soft: #173a2b; --warn: #f0b660; --warn-soft: #3d2e14;
+  --bad: #ff8f86; --bad-soft: #43201f; --glyph-paper: #eceff6;
+  color-scheme: dark;
+}
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.5 var(--font-body);
+  -webkit-text-size-adjust: 100%;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 920px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h2 { font-size: 1.3rem; font-weight: 750; }
+h3 { font-size: 1.02rem; font-weight: 600; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 0.86rem; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* header */
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px 8px; }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand h1 { font-size: 1.35rem; font-weight: 750; letter-spacing: -0.01em; }
+.brand h1 span { color: var(--accent); }
+.ready-pill { font-family: var(--font-mono); font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+nav.tabs { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 0; scrollbar-width: none; }
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs button {
+  appearance: none; border: 0; background: none; color: var(--muted); font: 600 0.92rem var(--font-body);
+  padding: 8px 12px 10px; border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap;
+}
+nav.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+nav.tabs button:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, .drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+main { padding-block: 20px 60px; }
+section.view { display: grid; gap: 18px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.eyebrow { font: 600 0.72rem var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+/* buttons & inputs */
+.btn { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 600 0.9rem var(--font-body); padding: 9px 14px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.btn.small { padding: 5px 10px; font-size: 0.82rem; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+label.field { display: grid; gap: 5px; font-size: 0.86rem; color: var(--muted); min-width: 0; }
+textarea, input[type="text"], select {
+  font: 15px/1.45 var(--font-body); color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; width: 100%; min-width: 0;
+}
+textarea { resize: vertical; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 0.92rem; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+/* readiness */
+.ready-grid { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 22px; align-items: center; }
+@media (max-width: 560px) { .ready-grid { grid-template-columns: 1fr; } }
+.big-num { font: 750 3.4rem/1 var(--font-display); letter-spacing: -0.03em; }
+.big-num small { font-size: 1.4rem; color: var(--muted); }
+.bars { display: grid; gap: 10px; }
+.bar-row { display: grid; grid-template-columns: 9.5em 1fr 3.2em; gap: 10px; align-items: center; font-size: 0.88rem; }
+.bar { height: 8px; background: var(--accent-soft); border-radius: 99px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.bar-row .mono { text-align: right; font-size: 0.82rem; }
+
+/* priority list */
+.todo { display: grid; gap: 0; }
+.todo-item { display: grid; grid-template-columns: 52px 1fr auto; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.todo-item:first-child { border-top: 0; }
+.todo-glyph { width: 52px; height: 52px; border-radius: 8px; background: var(--glyph-paper); display: grid; place-items: center; font: 600 1.6rem var(--font-display); color: #18203a; border: 1px solid var(--line); overflow: hidden; }
+.todo-glyph img { max-height: 40px; max-width: 44px; }
+.todo-text { min-width: 0; display: grid; gap: 2px; }
+.todo-text b { font-weight: 600; }
+.chip { font: 600 0.72rem var(--font-body); letter-spacing: 0.03em; padding: 3px 8px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; }
+.chip.missing { background: var(--bad-soft); color: var(--bad); }
+.chip.weak { background: var(--warn-soft); color: var(--warn); }
+.chip.almost { background: var(--accent-soft); color: var(--accent); }
+.chip.check { background: var(--warn-soft); color: var(--warn); }
+.chip.good { background: var(--good-soft); color: var(--good); }
+
+/* practice sheet */
+.sheet {
+  position: relative; background: var(--glyph-paper); color: #18203a; border-radius: 6px; border: 1px solid var(--line);
+  padding: 6px 16px 14px 46px; font: 1.12rem/2.2rem var(--font-body); letter-spacing: 0.03em; word-spacing: 0.35em;
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(2.2rem - 1px), #b9c9ea calc(2.2rem - 1px), #b9c9ea 2.2rem);
+  background-position: 0 6px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.sheet::before { content: ""; position: absolute; top: 0; bottom: 0; left: 34px; width: 1px; background: #e7a3a3; }
+
+/* character map */
+.charmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.cm { border-radius: 7px; padding: 4px 0 3px; text-align: center; border: 1px solid var(--line); background: var(--surface); display: grid; gap: 1px; }
+.cm b { font: 600 1.15rem var(--font-display); }
+.cm span { font: 500 0.68rem var(--font-mono); color: var(--muted); }
+.cm.missing { background: var(--bad-soft); border-color: transparent; }
+.cm.weak, .cm.check { background: var(--warn-soft); border-color: transparent; }
+.cm.almost { background: var(--accent-soft); border-color: transparent; }
+.cm.good { background: var(--good-soft); border-color: transparent; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.8rem; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+/* upload & review */
+.drop { display: grid; place-items: center; gap: 6px; text-align: center; padding: 26px 16px; border: 2px dashed var(--rule); border-radius: var(--radius); background: var(--accent-soft); cursor: pointer; position: relative; }
+.drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.drop b { font: 600 1.05rem var(--font-display); }
+.tips { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.photo-box { overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: var(--glyph-paper); }
+.photo-box canvas { display: block; width: 100%; height: auto; }
+.msg { padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; }
+.msg.ok { background: var(--good-soft); color: var(--good); }
+.msg.warn { background: var(--warn-soft); color: var(--warn); }
+.msg.bad { background: var(--bad-soft); color: var(--bad); }
+.review-lines { display: grid; gap: 12px; }
+.review-line { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 12px; border-bottom: 1px dashed var(--line); }
+.card { width: 76px; display: grid; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+.card.word-start { margin-left: 10px; }
+.card .thumb { height: 56px; border-radius: 5px; background: var(--glyph-paper); display: grid; place-items: center; overflow: hidden; }
+.card .thumb canvas { max-width: 100%; max-height: 54px; }
+.card input { padding: 4px 6px; font: 600 0.95rem var(--font-mono); text-align: center; border-radius: 6px; }
+.card .acts { display: flex; justify-content: space-between; }
+.card .acts button { appearance: none; border: 0; background: none; color: var(--muted); font: 600 0.72rem var(--font-body); padding: 2px 3px; cursor: pointer; }
+.card .acts button:hover { color: var(--accent); }
+.card.flag { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
+.card.skip { opacity: 0.4; }
+.card.skip input { text-decoration: line-through; }
+
+/* library */
+.lib-group { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.lib-group:first-of-type { border-top: 0; padding-top: 0; }
+.lib-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lib-head b { font: 600 1.3rem var(--font-display); min-width: 1.2em; }
+.lib-samples { display: flex; flex-wrap: wrap; gap: 6px; }
+.sample { position: relative; height: 64px; min-width: 36px; padding: 4px 6px; border-radius: 6px; background: var(--glyph-paper); border: 1px solid var(--line); display: grid; place-items: center; }
+.sample img { max-height: 54px; }
+.sample.outlier { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
+.sample button { position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: 600 0.8rem/1 var(--font-body); cursor: pointer; padding: 0; }
+.sample button:hover { color: var(--bad); border-color: var(--bad); }
+
+/* write */
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.out-box { background: var(--glyph-paper); border-radius: 8px; border: 1px solid var(--line); overflow: hidden; min-height: 120px; display: grid; place-items: center; }
+.out-box img { display: block; width: 100%; height: auto; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 0.9rem; z-index: 20; display: flex; gap: 12px; align-items: center; max-width: calc(100% - 32px); }
+.toast button { appearance: none; border: 0; background: none; color: inherit; font: 700 0.9rem var(--font-body); text-decoration: underline; cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) { .bar > i { transition: width .4s ease; } }
+</style>
+<!--HS-HEAD-END-->
+</head>
+<body>
+<!--HS-BODY-START-->
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div class="brand"><h1>Handwriting <span>Studio</span></h1></div>
+      <div class="ready-pill" id="readyPill">0% ready</div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="coverage" id="tab-coverage">Coverage</button>
+      <button role="tab" data-tab="collect" id="tab-collect">Add photos</button>
+      <button role="tab" data-tab="library" id="tab-library">Library</button>
+      <button role="tab" data-tab="write" id="tab-write">Write</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- COVERAGE -->
+  <section class="view" id="view-coverage" data-view="coverage">
+    <div class="panel">
+      <div class="ready-grid">
+        <div>
+          <div class="eyebrow">Imitation readiness</div>
+          <div class="big-num mono" id="readyNum">0<small>%</small></div>
+          <p class="small muted" id="readyText"></p>
+        </div>
+        <div class="bars" id="groupBars"></div>
+      </div>
+      <p class="small muted" id="storageNote" hidden></p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Needs more pictures</h2>
+        <span class="small muted">Most important first</span>
+      </div>
+      <div class="todo" id="todoList"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Your next practice page</h2>
+        <div class="row">
+          <button class="btn small" id="copyPractice">Copy text</button>
+          <button class="btn small" id="newPractice">Different words</button>
+        </div>
+      </div>
+      <p class="small muted">Write this on plain white paper with a dark pen, then photograph it. The words were picked to cover the characters you need most.</p>
+      <div class="sheet" id="practiceSheet"></div>
+      <div class="row"><button class="btn primary" id="goCollect">I've written it: add the photo</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Every character</h2>
+        <div class="legend">
+          <span><i style="background:var(--bad)"></i>Missing</span>
+          <span><i style="background:var(--warn)"></i>Too few or uneven</span>
+          <span><i style="background:var(--accent)"></i>Almost</span>
+          <span><i style="background:var(--good)"></i>Reliable</span>
+        </div>
+      </div>
+      <p class="small muted">The numbers are samples you have / samples needed. Common letters need more versions, because a letter that repeats with only one shape looks stamped, not handwritten.</p>
+      <div id="charmaps" style="display:grid;gap:14px"></div>
+      <label class="check"><input type="checkbox" id="joinedToggle"> My writing is joined-up (cursive). Also track common whole words.</label>
+    </div>
+
+    <div class="panel">
+      <h3>No handwriting photos yet?</h3>
+      <p class="small muted">Load a set of example samples, made from a computer font, to see how coverage and writing work. They're marked as examples and you can remove them at any time.</p>
+      <div class="row">
+        <button class="btn" id="demoAdd">Load example samples</button>
+        <button class="btn" id="demoRemove">Remove example samples</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLLECT -->
+  <section class="view" id="view-collect" data-view="collect" hidden>
+    <div class="panel">
+      <h2>Add photos of your handwriting</h2>
+      <ul class="tips small">
+        <li>Plain white paper and a dark pen work best. Lined paper can confuse the letter finder.</li>
+        <li>Leave a finger's width between words and a clear gap between lines.</li>
+        <li>Take the photo straight on, in even light, with the writing filling most of the picture.</li>
+        <li>Any writing works. Type exactly what you wrote in the box below the photo.</li>
+      </ul>
+      <label class="drop" id="dropZone">
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <b>Choose or take photos</b>
+        <span class="small muted">You can pick several. They're processed one at a time, on this device only.</span>
+      </label>
+      <p class="small muted" id="queueNote" hidden></p>
+    </div>
+
+    <div class="panel" id="reviewPanel" hidden>
+      <div class="panel-head">
+        <h2>Check the letters</h2>
+        <span class="small muted" id="reviewCount"></span>
+      </div>
+      <div class="photo-box"><canvas id="overlay"></canvas></div>
+      <label class="field">What's written on this page (exactly, including punctuation)
+        <textarea id="expectedText" rows="4"></textarea>
+      </label>
+      <div class="controls">
+        <label class="field">Ink detection: <span id="sensVal">50</span>
+          <input type="range" id="sens" min="0" max="100" value="50">
+        </label>
+      </div>
+      <div class="row">
+        <button class="btn" id="relabel">Match letters to text</button>
+        <button class="btn primary" id="saveSamples">Save samples</button>
+        <button class="btn" id="discardPhoto">Skip this photo</button>
+      </div>
+      <div class="msg" id="reviewMsg" hidden></div>
+      <p class="small muted">Each box below is one thing the app found. Fix any wrong label. Use <b>Join</b> when one letter was split in two (like a broken <span class="mono">k</span>), and <b>Skip</b> for smudges. Joined-up letters that came out as one piece can keep a multi-letter label like <span class="mono">the</span>; they're saved as a whole-word sample.</p>
+      <div class="review-lines" id="reviewLines"></div>
+    </div>
+  </section>
+
+  <!-- LIBRARY -->
+  <section class="view" id="view-library" data-view="library" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Your samples</h2>
+        <span class="small muted mono" id="libCount"></span>
+      </div>
+      <p class="small muted">Samples with an orange outline look unlike your other versions of that character (very different size or shape). Delete them if the letter finder cut them wrong.</p>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="libFlagged"> Only show odd-looking samples</label>
+      </div>
+      <div id="libList" style="display:grid;gap:12px"></div>
+    </div>
+    <div class="panel">
+      <h3>Backup</h3>
+      <p class="small muted">Your samples are stored in this browser only. Clearing site data deletes them. Save a backup file now and then.</p>
+      <div class="row">
+        <button class="btn" id="exportBtn">Save backup file</button>
+        <button class="btn" id="copyBackup">Copy backup as text</button>
+        <label class="btn" style="position:relative;overflow:hidden">Restore from file
+          <input type="file" id="importFile" accept=".json,application/json" style="position:absolute;inset:0;opacity:0">
+        </label>
+      </div>
+      <details>
+        <summary class="small">Restore from pasted text</summary>
+        <div style="display:grid;gap:8px;margin-top:8px">
+          <textarea id="importText" rows="3" placeholder="Paste backup text here"></textarea>
+          <div class="row"><button class="btn small" id="importTextBtn">Restore</button></div>
+        </div>
+      </details>
+      <div class="row"><button class="btn" id="clearAll">Delete all samples</button><span class="small muted" id="clearConfirm" hidden>Tap again to delete everything.</span></div>
+    </div>
+  </section>
+
+  <!-- WRITE -->
+  <section class="view" id="view-write" data-view="write" hidden>
+    <div class="panel">
+      <h2>Write in your hand</h2>
+      <label class="field">Text
+        <textarea id="writeText" rows="4">Dear Sam,
+Thank you for the lovely card. I'll see you on Friday at 7 and we can catch up properly!</textarea>
+      </label>
+      <div class="controls">
+        <label class="field">Letter size <input type="range" id="wSize" min="18" max="70" value="34"></label>
+        <label class="field">Line spacing <input type="range" id="wGap" min="15" max="40" value="24"></label>
+        <label class="field">Natural wobble <input type="range" id="wJit" min="0" max="100" value="45"></label>
+        <label class="field">Ink
+          <select id="wInk">
+            <option value="#1d2440">Blue-black</option>
+            <option value="#111111">Black</option>
+            <option value="#1f3fa8">Blue</option>
+            <option value="#7a2a1d">Brown</option>
+          </select>
+        </label>
+        <label class="field">Paper
+          <select id="wPaper">
+            <option value="plain">Plain</option>
+            <option value="lined">Lined</option>
+            <option value="clear">Transparent</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="renderBtn">Write it</button>
+        <button class="btn" id="shuffleBtn">Pick other versions</button>
+        <a class="btn" id="downloadBtn" download="handwriting.png" hidden>Download PNG</a>
+      </div>
+      <div class="msg warn" id="missingMsg" hidden></div>
+      <div class="out-box" id="outBox"><span class="small muted" id="outPlaceholder">Your writing appears here.</span><img id="outImg" alt="Text written in your handwriting" hidden></div>
+      <p class="small muted">To save on a phone, press and hold the picture. Every time you tap <b>Pick other versions</b>, each letter is drawn from a different one of your samples.</p>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden><span id="toastText"></span><button id="toastUndo" hidden>Undo</button></div>
+
+<script>
+'use strict';
+/* ============================================================
+   Handwriting Studio
+   Photos -> letter samples -> coverage advice -> new text in your hand.
+   Everything runs locally; samples live in IndexedDB.
+   ============================================================ */
+
+// ---------- character sets & targets ----------
+const LOWER = [...'abcdefghijklmnopqrstuvwxyz'];
+const UPPER = LOWER.map(c => c.toUpperCase());
+const DIGITS = [...'0123456789'];
+const SYMBOLS = [...".,!?'\"-:;()&@#$%/+"];
+// English letter frequency (%)
+const FREQ = { e:12.7,t:9.1,a:8.2,o:7.5,i:7.0,n:6.7,s:6.3,h:6.1,r:6.0,d:4.3,l:4.0,c:2.8,u:2.8,m:2.4,w:2.4,f:2.2,g:2.0,y:2.0,p:1.9,b:1.5,v:1.0,k:0.8,j:0.15,x:0.15,q:0.1,z:0.07 };
+const JOINED_WORDS = ['the','and','of','to','in','is','it','you','that','was','for','on','are','with','as','be','at','this','have','from','ing','th','er','an'];
+const SYMBOL_WEIGHT = { '.':0.7, ',':0.65, "'":0.5, '?':0.45, '!':0.4, '-':0.4, '"':0.3, ':':0.3 };
+
+function targetFor(c) {
+  if (FREQ[c]) return 3 + Math.round(5 * Math.sqrt(FREQ[c] / 12.7)); // e=8 ... z=4
+  if (/^[A-Z]$/.test(c)) return 3;
+  if (/^[0-9]$/.test(c)) return 3;
+  if (c === '.' || c === ',') return 4;
+  if (c.length > 1) return 2; // joined whole words
+  return 2;
+}
+function weightFor(c) {
+  if (FREQ[c]) return 0.35 + 1.65 * (FREQ[c] / 12.7);
+  if (/^[A-Z]$/.test(c)) return 0.5;
+  if (/^[0-9]$/.test(c)) return 0.42;
+  if (c.length > 1) return 0.5;
+  return SYMBOL_WEIGHT[c] || 0.22;
+}
+
+// ---------- small helpers ----------
+const $ = (s, r = document) => r.querySelector(s);
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k.nodeType ? k : document.createTextNode(k));
+  return e;
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const median = arr => { if (!arr.length) return 0; const s = [...arr].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function charName(c) {
+  const names = { ' ':'space', '.':'full stop', ',':'comma', "'":'apostrophe', '"':'quote', '-':'dash', ':':'colon', ';':'semicolon', '(':'open bracket', ')':'close bracket', '!':'exclamation mark', '?':'question mark', '&':'ampersand', '@':'at sign', '#':'hash', '$':'dollar', '%':'percent', '/':'slash', '+':'plus' };
+  if (names[c]) return names[c];
+  if (/^[a-z]$/.test(c)) return 'lowercase ' + c;
+  if (/^[A-Z]$/.test(c)) return 'capital ' + c;
+  if (/^[0-9]$/.test(c)) return 'number ' + c;
+  return '“' + c + '”';
+}
+let toastTimer = null, undoFn = null;
+function toast(text, undo) {
+  $('#toastText').textContent = text;
+  undoFn = undo || null;
+  $('#toastUndo').hidden = !undo;
+  $('#toast').hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $('#toast').hidden = true; undoFn = null; }, undo ? 6000 : 3000);
+}
+$('#toastUndo').addEventListener('click', () => { if (undoFn) undoFn(); $('#toast').hidden = true; undoFn = null; });
+
+// ---------- storage ----------
+const Store = (() => {
+  let db = null;
+  const wrap = req => new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
+  function done(t) { return new Promise((res, rej) => { t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); }
+  return {
+    async open() {
+      try {
+        db = await new Promise((res, rej) => {
+          const r = indexedDB.open('handwriting-studio', 1);
+          r.onupgradeneeded = () => r.result.createObjectStore('samples', { keyPath: 'id' });
+          r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+        });
+      } catch (e) { db = null; }
+    },
+    get persistent() { return !!db; },
+    async all() { if (!db) return []; try { return await wrap(db.transaction('samples').objectStore('samples').getAll()); } catch (e) { return []; } },
+    async put(list) { if (!db || !list.length) return; try { const t = db.transaction('samples', 'readwrite'); const os = t.objectStore('samples'); list.forEach(s => os.put(s)); await done(t); } catch (e) { toast('Could not save to this browser’s storage.'); } },
+    async remove(ids) { if (!db || !ids.length) return; try { const t = db.transaction('samples', 'readwrite'); const os = t.objectStore('samples'); ids.forEach(id => os.delete(id)); await done(t); } catch (e) {} },
+  };
+})();
+
+const settings = { joined: false, tab: 'coverage', seed: 0 };
+try { Object.assign(settings, JSON.parse(localStorage.getItem('hs-settings') || '{}')); } catch (e) {}
+function saveSettings() { try { localStorage.setItem('hs-settings', JSON.stringify(settings)); } catch (e) {} }
+
+let samples = [];
+
+// ---------- coverage analysis ----------
+function buildIndex(list = samples) {
+  const m = new Map();
+  for (const s of list) { if (!m.has(s.label)) m.set(s.label, []); m.get(s.label).push(s); }
+  return m;
+}
+function spread(values) {
+  const n = values.length; const m = values.reduce((a, b) => a + b, 0) / n;
+  const sd = Math.sqrt(values.reduce((a, b) => a + (b - m) ** 2, 0) / n);
+  return m ? sd / m : 0;
+}
+const relH = s => s.h / s.u;
+const aspect = s => s.w / s.h;
+// Robust outliers: distance from the median in MAD units.
+function findOutliers(index) {
+  const out = new Set();
+  for (const arr of index.values()) {
+    if (arr.length < 4) continue;
+    for (const fn of [relH, aspect]) {
+      const v = arr.map(fn); const med = median(v);
+      const mad = Math.max(median(v.map(x => Math.abs(x - med))), 0.06 * med);
+      arr.forEach((s, i) => { if (Math.abs(v[i] - med) / (1.4826 * mad) > 3.2) out.add(s.id); });
+    }
+  }
+  return out;
+}
+
+function coverage() {
+  const index = buildIndex();
+  const groups = [
+    { key: 'lower', name: 'Lowercase', chars: LOWER },
+    { key: 'upper', name: 'Capitals', chars: UPPER },
+    { key: 'digit', name: 'Numbers', chars: DIGITS },
+    { key: 'symbol', name: 'Punctuation', chars: SYMBOLS },
+  ];
+  if (settings.joined) groups.push({ key: 'joined', name: 'Joined words', chars: JOINED_WORDS });
+  const items = [];
+  for (const g of groups) {
+    let num = 0, den = 0;
+    for (const c of g.chars) {
+      const arr = index.get(c) || [];
+      const n = arr.length, target = targetFor(c), w = weightFor(c);
+      let uneven = false;
+      if (n >= 3) uneven = spread(arr.map(relH)) > 0.25 || spread(arr.map(aspect)) > 0.38;
+      let status;
+      if (n === 0) status = 'missing';
+      else if (n < Math.ceil(target / 2)) status = 'weak';
+      else if (n < target) status = 'almost';
+      else status = uneven ? 'check' : 'good';
+      // within words, letters joined to neighbours are stored inside multi-letter samples
+      let inWords = 0;
+      if (c.length === 1) for (const [label, a] of index) if (label.length > 1 && label.includes(c)) inWords += a.length;
+      const fill = Math.min(1, n / target) * (uneven ? 0.85 : 1);
+      const gw = g.key === 'lower' ? FREQ[c] : 1;
+      num += gw * fill; den += gw;
+      const priority = w * ((target - Math.min(n, target)) / target) + (n === 0 ? w * 0.6 : 0) + (uneven ? 0.25 * w : 0);
+      items.push({ c, n, target, status, uneven, group: g.key, priority, inWords });
+    }
+    g.score = den ? num / den : 0;
+  }
+  const W = settings.joined
+    ? { lower: 0.6, upper: 0.1, digit: 0.08, symbol: 0.08, joined: 0.14 }
+    : { lower: 0.7, upper: 0.12, digit: 0.08, symbol: 0.1 };
+  let overall = 0; for (const g of groups) overall += (W[g.key] || 0) * g.score;
+  return { items, groups, overall, index };
+}
+
+function reasonFor(it) {
+  const parts = [];
+  if (it.n === 0) parts.push(`No samples yet, so it can't be written at all.`);
+  else if (it.status === 'check') parts.push(`You have enough, but they vary a lot in size or shape. Add a few more so your usual shape wins, or delete odd ones in Library.`);
+  else parts.push(`${it.n} of ${it.target} samples.`);
+  if (it.n > 0 && it.uneven && it.status !== 'check') parts.push('The ones you have vary a lot in size.');
+  if (it.group === 'lower' && FREQ[it.c] >= 6 && it.status !== 'check') parts.push('One of the most used letters, so repeats are easy to spot.');
+  else if (it.group === 'lower' && FREQ[it.c] < 0.5 && it.n === 0) parts.push('Rare, but one missing letter breaks a whole word.');
+  if (it.group === 'joined') parts.push('A common word: a whole-word sample keeps your joins natural.');
+  if (it.inWords && it.n < it.target) parts.push(`Also appears inside ${it.inWords} whole-word sample${it.inWords > 1 ? 's' : ''}, but a single-letter sample is needed for other words.`);
+  return parts.join(' ');
+}
+
+// ---------- practice page generator ----------
+const WORDS = ('the of and to in is you that it he was for on are as with his they at be this have from or one had by word but not what all were we when your can said there use an each which she do how their if will up other about out many then them these so some her would make like him into time has look two more write go see number no way could people my than first water been call who its now find long down day did get come made may part over new sound take only little work know place year live me back give most very after thing our just name good sentence man think say great where help through much before line right too mean old any same tell boy follow came want show also around form three small set put end does another well large must big even such because turn here why ask went men read need land different home us move try kind hand picture again change off play spell air away animal house point page letter mother answer found study still learn should world'
+  + ' quick quiet queen quote equal question liquid zebra zone size lazy puzzle amaze frozen jump just joy major enjoy object jacket box fix six next taxi extra example exact oxygen kiwi jazz quartz vex wave voice every seven over vivid jinx quiz zigzag fizzy ketchup awkward knock pebble cabbage dizzy jewel jigsaw muffin hobby gravy whisky banjo plywood').split(/\s+/);
+const NAMES = { A:'Alice', B:'Boston', C:'Clara', D:'Dover', E:'Emma', F:'Friday', G:'Grace', H:'Henry', I:'India', J:'June', K:'Kenya', L:'London', M:'Monday', N:'Nora', O:'Oscar', P:'Paris', Q:'Quebec', R:'Rome', S:'Sunday', T:'Tokyo', U:'Utah', V:'Venice', W:'Wales', X:'Xavier', Y:'York', Z:'Zurich' };
+
+function seededRandom(seed) { let s = (seed * 9301 + 49297) % 233280 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+
+function practiceText(cov) {
+  const rnd = seededRandom(settings.seed + 7);
+  const need = new Map();
+  for (const it of cov.items) if (it.status !== 'good') need.set(it.c, Math.max(1, it.target - it.n));
+  const lines = [];
+  // Joined words first, written as whole words
+  const joinedWords = [];
+  if (settings.joined) for (const w of JOINED_WORDS) if (need.has(w) && w.length > 2) joinedWords.push(w);
+  // Lowercase: greedy word choice covering the biggest deficits
+  const rem = new Map(); for (const c of LOWER) if (need.has(c)) rem.set(c, need.get(c));
+  const chosen = []; const used = new Set();
+  const pool = WORDS.filter(w => /^[a-z]+$/.test(w));
+  while (chosen.length < 20) {
+    let total = 0; for (const v of rem.values()) total += v; if (total <= 0) break;
+    let best = null, bestScore = 0;
+    for (const w of pool) {
+      if (used.has(w)) continue;
+      const tmp = new Map(rem); let gain = 0;
+      for (const ch of w) { const r = tmp.get(ch) || 0; if (r > 0) { gain += 1 + weightFor(ch) * 0.5; tmp.set(ch, r - 1); } }
+      const score = gain / (1 + 0.18 * w.length) + rnd() * 0.15;
+      if (score > bestScore) { bestScore = score; best = w; }
+    }
+    if (!best || bestScore < 0.3) break;
+    used.add(best); chosen.push(best);
+    for (const ch of best) if ((rem.get(ch) || 0) > 0) rem.set(ch, rem.get(ch) - 1);
+  }
+  const words = [...joinedWords, ...chosen];
+  for (let i = 0; i < words.length; i += 5) lines.push(words.slice(i, i + 5).join(' '));
+  // Capitals: one word per missing capital
+  // Keep one page comfortable: the most needed capitals, digits and symbols first; the next page gets the rest
+  const byPri = new Map(cov.items.map(i => [i.c, i.priority]));
+  const top = (arr, n) => arr.filter(c => need.has(c)).sort((a, b) => byPri.get(b) - byPri.get(a)).slice(0, n);
+  const caps = top(UPPER, 10);
+  const capWords = caps.map(C => {
+    const opts = pool.filter(w => w[0] === C.toLowerCase() && w.length > 2);
+    return opts.length && rnd() < 0.5 ? C + opts[Math.floor(rnd() * opts.length)].slice(1) : NAMES[C];
+  });
+  for (let i = 0; i < capWords.length; i += 5) lines.push(capWords.slice(i, i + 5).join(' '));
+  // Digits and symbols, spaced out so each is easy to find
+  const digs = DIGITS.filter(d => need.has(d)); const dig = [];
+  const dReps = digs.length > 5 ? 1 : 3;
+  for (const d of digs) for (let k = 0; k < Math.min(need.get(d), dReps); k++) dig.push(d);
+  if (dig.length) lines.push(dig.slice(0, 12).join(' '));
+  const syms = top(SYMBOLS, 12); const sym = [];
+  const sReps = syms.length > 6 ? 1 : 2;
+  for (const s of syms) for (let k = 0; k < Math.min(need.get(s), sReps); k++) sym.push(s);
+  if (sym.length) lines.push(sym.slice(0, 12).join(' '));
+  if (!lines.length) {
+    // Everything covered: more variety never hurts
+    const extra = []; for (let i = 0; i < 10; i++) extra.push(pool[Math.floor(rnd() * pool.length)]);
+    lines.push(extra.slice(0, 5).join(' '), extra.slice(5).join(' '), 'The quick brown fox jumps over the lazy dog.');
+  }
+  return lines.join('\n');
+}
+
+// ---------- image analysis: photo -> letter candidates ----------
+function analyzeImage(img, sens) {
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  const sc = Math.min(1, 2000 / Math.max(iw, ih));
+  const W = Math.max(1, Math.round(iw * sc)), H = Math.max(1, Math.round(ih * sc));
+  const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.drawImage(img, 0, 0, W, H);
+  const data = ctx.getImageData(0, 0, W, H).data;
+  const N = W * H, gray = new Uint8ClampedArray(N);
+  for (let i = 0, j = 0; i < N; i++, j += 4) gray[i] = data[j] * 0.299 + data[j + 1] * 0.587 + data[j + 2] * 0.114;
+
+  // Local-mean (Bradley) threshold: copes with shadows and uneven light
+  const W1 = W + 1, integ = new Float64Array(W1 * (H + 1));
+  for (let y = 0; y < H; y++) { let row = 0; for (let x = 0; x < W; x++) { row += gray[y * W + x]; integ[(y + 1) * W1 + x + 1] = integ[y * W1 + x + 1] + row; } }
+  const r = Math.max(8, Math.round(Math.min(W, H) / 22));
+  const t = 0.3 - 0.22 * sens;
+  const mean = new Uint8ClampedArray(N), ink = new Uint8Array(N);
+  for (let y = 0; y < H; y++) {
+    const y1 = Math.max(0, y - r), y2 = Math.min(H - 1, y + r);
+    for (let x = 0; x < W; x++) {
+      const x1 = Math.max(0, x - r), x2 = Math.min(W - 1, x + r);
+      const cnt = (x2 - x1 + 1) * (y2 - y1 + 1);
+      const sum = integ[(y2 + 1) * W1 + x2 + 1] - integ[y1 * W1 + x2 + 1] - integ[(y2 + 1) * W1 + x1] + integ[y1 * W1 + x1];
+      const i = y * W + x, m = sum / cnt; mean[i] = m;
+      if (gray[i] < m * (1 - t) && m - gray[i] > 16) ink[i] = 1;
+    }
+  }
+
+  // Connected components (8-way), union-find
+  const lab = new Int32Array(N); const parent = [0];
+  const find = a => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; if (!ink[i]) continue;
+    let m = 0; const nb = [];
+    if (x > 0 && lab[i - 1]) nb.push(lab[i - 1]);
+    if (y > 0) {
+      if (lab[i - W]) nb.push(lab[i - W]);
+      if (x > 0 && lab[i - W - 1]) nb.push(lab[i - W - 1]);
+      if (x < W - 1 && lab[i - W + 1]) nb.push(lab[i - W + 1]);
+    }
+    if (!nb.length) { m = parent.length; parent.push(m); }
+    else { m = find(nb[0]); for (let k = 1; k < nb.length; k++) { const b = find(nb[k]); if (b !== m) { if (b < m) { parent[m] = b; m = b; } else parent[b] = m; } } }
+    lab[i] = m;
+  }
+  const rootIdx = new Int32Array(parent.length).fill(-1); const comps = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; if (!lab[i]) continue;
+    const rt = find(lab[i]); let k = rootIdx[rt];
+    if (k < 0) { k = rootIdx[rt] = comps.length; comps.push({ id: k + 1, x1: x, y1: y, x2: x, y2: y, area: 0 }); }
+    const c = comps[k]; c.area++; if (x < c.x1) c.x1 = x; if (x > c.x2) c.x2 = x; if (y < c.y1) c.y1 = y; if (y > c.y2) c.y2 = y;
+    lab[i] = k + 1;
+  }
+
+  // Throw away paper edges, rule lines and specks
+  let cs = comps.filter(c => c.area >= 6 && !((c.x1 === 0 || c.y1 === 0 || c.x2 === W - 1 || c.y2 === H - 1) && (c.x2 - c.x1 > W * 0.2 || c.y2 - c.y1 > H * 0.2)));
+  const hs0 = cs.filter(c => c.area >= 20).map(c => c.y2 - c.y1 + 1);
+  let hMed = median(hs0);
+  hMed = median(hs0.filter(v => v >= hMed * 0.5)) || hMed;
+  if (!hMed) return { W, H, canvas, gray, mean, lab, groups: [], lines: [], hMed: 0 };
+  cs = cs.filter(c => {
+    const w = c.x2 - c.x1 + 1, hh = c.y2 - c.y1 + 1;
+    if (Math.max(w, hh) < 0.09 * hMed && c.area < 0.01 * hMed * hMed) return false;
+    if (hh > 5 * hMed) return false;
+    if (w > 9 * hMed && hh < 0.4 * hMed) return false; // ruled line
+    return true;
+  });
+
+  // Merge dots, accents and two-piece marks (i j : ; = ! ?) into their partner
+  let groups = cs.map(c => ({ members: [c.id], x1: c.x1, y1: c.y1, x2: c.x2, y2: c.y2, area: c.area }));
+  const isSmall = g => (g.y2 - g.y1 + 1) < 0.42 * hMed && g.area < 0.3 * hMed * hMed;
+  let changed = true, guard = 0;
+  while (changed && guard++ < 20) {
+    changed = false;
+    groups.sort((a, b) => a.area - b.area);
+    for (let i = 0; i < groups.length; i++) {
+      const a = groups[i]; if (!isSmall(a)) continue;
+      let best = -1, bestGap = Infinity;
+      for (let j = 0; j < groups.length; j++) {
+        if (j === i) continue; const b = groups[j];
+        const ov = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1) + 1;
+        const minw = Math.min(a.x2 - a.x1 + 1, b.x2 - b.x1 + 1);
+        if (ov < 0.35 * minw) continue;
+        const gap = Math.max(a.y1, b.y1) - Math.min(a.y2, b.y2);
+        if (gap > 0.6 * hMed) continue;
+        if (gap < bestGap) { bestGap = gap; best = j; }
+      }
+      if (best >= 0) {
+        const b = groups[best];
+        b.members.push(...a.members); b.x1 = Math.min(a.x1, b.x1); b.y1 = Math.min(a.y1, b.y1); b.x2 = Math.max(a.x2, b.x2); b.y2 = Math.max(a.y2, b.y2); b.area += a.area;
+        groups.splice(i, 1); changed = true; break;
+      }
+    }
+  }
+
+  // Group into lines, tracking slant from left to right
+  groups.sort((a, b) => a.x1 - b.x1);
+  const lines = [];
+  for (const g of groups) {
+    const cy = (g.y1 + g.y2) / 2, gh = g.y2 - g.y1 + 1, normal = gh >= 0.45 * hMed;
+    let best = null, bd = Infinity;
+    for (const L of lines) {
+      const d = Math.abs(cy - L.cy); const tol = normal ? 0.6 * hMed : 0.9 * hMed;
+      if (d < tol && d < bd) { bd = d; best = L; }
+    }
+    if (!best) { best = { cy, items: [], hasNormal: normal }; lines.push(best); }
+    else if (normal) { best.cy = best.hasNormal ? best.cy * 0.6 + cy * 0.4 : cy; best.hasNormal = true; }
+    best.items.push(g);
+  }
+  for (const L of lines) {
+    L.items.sort((a, b) => a.x1 - b.x1);
+    const normals = L.items.filter(g => g.y2 - g.y1 + 1 >= 0.45 * hMed);
+    L.u = median(normals.map(g => g.y2 - g.y1 + 1)) || hMed;
+    // Baseline: line through letter bottoms, refit without descenders (g, p, y...)
+    let pts = (normals.length ? normals : L.items).map(g => [(g.x1 + g.x2) / 2, g.y2]);
+    let fit = fitLine(pts);
+    const kept = pts.filter(([x, y]) => y - (fit.a + fit.b * x) < 0.18 * L.u);
+    if (kept.length >= 2) fit = fitLine(kept);
+    L.a = fit.a; L.b = fit.b;
+    L.baseAt = x => L.a + L.b * x;
+    L.y = median(L.items.map(g => (g.y1 + g.y2) / 2));
+    for (const g of L.items) g.line = L;
+  }
+  lines.sort((a, b) => a.y - b.y);
+  return { W, H, canvas, gray, mean, lab, groups, lines, hMed };
+}
+function fitLine(pts) {
+  if (pts.length < 2) return { a: pts.length ? pts[0][1] : 0, b: 0 };
+  let sx = 0, sy = 0, sxx = 0, sxy = 0; const n = pts.length;
+  for (const [x, y] of pts) { sx += x; sy += y; sxx += x * x; sxy += x * y; }
+  const den = n * sxx - sx * sx;
+  let b = den ? (n * sxy - sx * sy) / den : 0; b = clamp(b, -0.2, 0.2);
+  return { a: (sy - b * sx) / n, b };
+}
+function orderedGroups(an) { return an.lines.flatMap(L => L.items); }
+
+// Split each line into words at gaps wider than thr (in line units)
+function splitWords(an, thr) {
+  const words = [];
+  for (const L of an.lines) {
+    let cur = [];
+    L.items.forEach((g, i) => {
+      if (i > 0) { const gap = g.x1 - L.items[i - 1].x2; if (gap > thr * L.u) { words.push(cur); cur = []; } }
+      cur.push(g);
+    });
+    if (cur.length) words.push(cur);
+  }
+  return words;
+}
+
+// Match the text the person typed to what was found on the page
+function autoLabel(an, text) {
+  const all = orderedGroups(an);
+  all.forEach(g => { g.label = ''; g.flag = false; g.wordStart = false; });
+  const expected = text.trim().split(/\s+/).filter(Boolean);
+  if (!all.length) return { kind: 'bad', text: 'No writing found. Try a sharper photo with darker ink, or move the ink detection slider right.' };
+  if (!expected.length) return { kind: 'warn', text: 'Type what’s written on the page, then tap Match letters to text.' };
+  // Find word-gap thresholds that give exactly the expected number of words; use the middle one
+  const ok = [];
+  for (let thr = 0.18; thr <= 1.3; thr += 0.04) if (splitWords(an, thr).length === expected.length) ok.push(thr);
+  if (ok.length) {
+    const words = splitWords(an, ok[Math.floor(ok.length / 2)]);
+    let exact = 0, whole = 0, unsure = 0;
+    words.forEach((dw, wi) => {
+      const ew = expected[wi]; const chars = [...ew];
+      dw[0].wordStart = true;
+      if (dw.length === chars.length) { dw.forEach((g, k) => g.label = chars[k]); exact++; }
+      else if (dw.length === 1) { dw[0].label = ew; whole++; }
+      else {
+        unsure++;
+        dw.forEach((g, k) => {
+          g.flag = true;
+          if (k < dw.length - 1) g.label = chars[k] || '';
+          else g.label = chars.slice(k).join('');
+        });
+      }
+    });
+    const total = words.length;
+    if (!unsure) return { kind: 'ok', text: `Matched all ${total} words${whole ? ` (${whole} kept as joined whole words)` : ''}. Check a few labels, then save.` };
+    return { kind: 'warn', text: `Matched ${exact + whole} of ${total} words. ${unsure} word${unsure > 1 ? 's have' : ' has'} letters that touch or broke apart; those boxes are outlined in orange. Fix their labels, or use Join, before saving.` };
+  }
+  // Fallback: character by character in reading order
+  const chars = [...expected.join('')];
+  all.forEach((g, i) => { g.label = chars[i] || ''; g.flag = true; });
+  const diff = all.length - chars.length;
+  return { kind: 'warn', text: `The words didn't line up with the gaps on the page, so letters were matched one by one. Found ${all.length} pieces for ${chars.length} characters${diff ? ` (${diff > 0 ? diff + ' extra' : -diff + ' short'})` : ''}. Please check every label.` };
+}
+
+// Cut one letter out of the photo as a soft-edged transparent PNG
+function extractGlyph(an, g) {
+  const { W, H, gray, mean, lab } = an; const pad = 2;
+  const x1 = Math.max(0, g.x1 - pad), y1 = Math.max(0, g.y1 - pad), x2 = Math.min(W - 1, g.x2 + pad), y2 = Math.min(H - 1, g.y2 + pad);
+  const w = x2 - x1 + 1, hh = y2 - y1 + 1;
+  const set = new Set(g.members);
+  const mask = new Uint8Array(w * hh); const inkVals = [];
+  for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) {
+    const i = (y + y1) * W + (x + x1);
+    if (set.has(lab[i])) { mask[y * w + x] = 1; inkVals.push(gray[i]); }
+  }
+  inkVals.sort((a, b) => a - b);
+  const inkLevel = inkVals[Math.floor(inkVals.length * 0.08)] || 0;
+  const c = document.createElement('canvas'); c.width = w; c.height = hh;
+  const cx = c.getContext('2d'); const out = cx.createImageData(w, hh);
+  for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) {
+    let on = mask[y * w + x];
+    if (!on) for (let dy = -1; dy <= 1 && !on; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const yy = y + dy, xx = x + dx; if (yy >= 0 && yy < hh && xx >= 0 && xx < w && mask[yy * w + xx]) { on = 2; break; }
+    }
+    if (!on) continue;
+    const i = (y + y1) * W + (x + x1); const m = mean[i];
+    let a = (m - gray[i]) / Math.max(25, m - inkLevel); a = clamp(a * 1.15, 0, 1);
+    if (on === 2) a *= 0.8;
+    out.data[(y * w + x) * 4 + 3] = Math.round(a * 255);
+  }
+  cx.putImageData(out, 0, 0);
+  const L = g.line; const u = L.u; const base = L.baseAt((g.x1 + g.x2) / 2);
+  // Keep storage small: cap the line unit at 90px
+  const f = Math.min(1, 90 / u);
+  let png;
+  if (f < 1) {
+    const c2 = document.createElement('canvas'); c2.width = Math.max(1, Math.round(w * f)); c2.height = Math.max(1, Math.round(hh * f));
+    const x2c = c2.getContext('2d'); x2c.imageSmoothingQuality = 'high'; x2c.drawImage(c, 0, 0, c2.width, c2.height);
+    png = c2.toDataURL('image/png');
+    return { png, w: c2.width, h: c2.height, u: u * f, top: (y1 - base) * f, lowRes: false };
+  }
+  png = c.toDataURL('image/png');
+  return { png, w, h: hh, u, top: y1 - base, lowRes: u < 22 };
+}
+
+// ---------- review UI ----------
+let current = null;   // { img, an, name }
+let queue = [];
+let practiceCache = '';
+
+async function loadImageFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    return img;
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 30000); }
+}
+async function startReview(file) {
+  let img;
+  try { img = await loadImageFile(file); }
+  catch (e) { toast('That file couldn’t be opened as a picture.'); return nextInQueue(); }
+  current = { img, name: file.name || 'photo' };
+  $('#reviewPanel').hidden = false;
+  if (!$('#expectedText').value.trim()) $('#expectedText').value = practiceCache;
+  runAnalysis();
+  $('#reviewPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function runAnalysis() {
+  if (!current) return;
+  const sens = +$('#sens').value / 100;
+  current.an = analyzeImage(current.img, sens);
+  relabel();
+}
+function relabel() {
+  const res = autoLabel(current.an, $('#expectedText').value);
+  showMsg('#reviewMsg', res.kind, res.text);
+  drawReview();
+}
+function showMsg(sel, kind, text) { const m = $(sel); m.className = 'msg ' + kind; m.textContent = text; m.hidden = !text; }
+
+function drawOverlay() {
+  const an = current.an; const cv = $('#overlay');
+  const s = Math.min(1, 1400 / an.W);
+  cv.width = Math.round(an.W * s); cv.height = Math.round(an.H * s);
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(an.canvas, 0, 0, cv.width, cv.height);
+  ctx.lineWidth = Math.max(1.5, 2.5 * s * (an.W / 1000));
+  const css = getComputedStyle(document.documentElement);
+  const cAcc = '#2443b3', cWarn = '#d98a00', cSkip = '#9aa3c0';
+  for (const L of an.lines) {
+    ctx.strokeStyle = 'rgba(214, 60, 60, 0.55)'; ctx.setLineDash([6, 5]);
+    ctx.beginPath(); const xa = L.items[0].x1, xb = L.items[L.items.length - 1].x2;
+    ctx.moveTo(xa * s, L.baseAt(xa) * s); ctx.lineTo(xb * s, L.baseAt(xb) * s); ctx.stroke(); ctx.setLineDash([]);
+    for (const g of L.items) {
+      ctx.strokeStyle = g.skip ? cSkip : g.flag ? cWarn : cAcc;
+      ctx.strokeRect(g.x1 * s - 1, g.y1 * s - 1, (g.x2 - g.x1 + 1) * s + 2, (g.y2 - g.y1 + 1) * s + 2);
+    }
+  }
+  void css;
+}
+function thumbFor(an, g) {
+  const pad = 3, x1 = Math.max(0, g.x1 - pad), y1 = Math.max(0, g.y1 - pad);
+  const w = Math.min(an.W - x1, g.x2 - g.x1 + 1 + pad * 2), hh = Math.min(an.H - y1, g.y2 - g.y1 + 1 + pad * 2);
+  const k = Math.min(1, 108 / hh, 140 / w);
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(hh * k));
+  c.getContext('2d').drawImage(an.canvas, x1, y1, w, hh, 0, 0, c.width, c.height);
+  return c;
+}
+function drawReview() {
+  const an = current.an; drawOverlay();
+  const box = $('#reviewLines'); box.textContent = '';
+  let n = 0;
+  an.lines.forEach(L => {
+    const row = h('div', { class: 'review-line' });
+    L.items.forEach((g, idx) => {
+      n++;
+      const input = h('input', { type: 'text', value: g.label || '', maxlength: '16', 'aria-label': 'Label', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
+      input.addEventListener('input', () => { g.label = input.value.trim(); g.flag = false; card.classList.remove('flag'); updateCount(); drawOverlay(); });
+      const card = h('div', { class: 'card' + (g.flag ? ' flag' : '') + (g.skip ? ' skip' : '') + (g.wordStart && idx > 0 ? ' word-start' : '') },
+        h('div', { class: 'thumb' }, thumbFor(an, g)),
+        input,
+        h('div', { class: 'acts' },
+          idx > 0 ? h('button', { type: 'button', title: 'Join with the piece before', onclick: () => joinPrev(L, idx) }, '← Join') : h('span'),
+          h('button', { type: 'button', onclick: () => { g.skip = !g.skip; drawReview(); } }, g.skip ? 'Keep' : 'Skip')));
+      row.append(card);
+    });
+    box.append(row);
+  });
+  updateCount();
+}
+function joinPrev(L, idx) {
+  const a = L.items[idx - 1], b = L.items[idx];
+  a.members.push(...b.members); a.x1 = Math.min(a.x1, b.x1); a.y1 = Math.min(a.y1, b.y1); a.x2 = Math.max(a.x2, b.x2); a.y2 = Math.max(a.y2, b.y2); a.area += b.area;
+  a.label = (a.label || '') + (b.label || ''); a.flag = true;
+  L.items.splice(idx, 1);
+  drawReview();
+}
+function updateCount() {
+  const gs = orderedGroups(current.an);
+  const ready = gs.filter(g => !g.skip && g.label).length;
+  $('#reviewCount').textContent = `${gs.length} pieces found, ${ready} labelled`;
+  $('#saveSamples').textContent = `Save ${ready} sample${ready === 1 ? '' : 's'}`;
+  $('#saveSamples').disabled = !ready;
+}
+async function saveCurrent() {
+  const an = current.an; const sheetId = uid(); const now = Date.now();
+  const add = []; let low = 0;
+  for (const g of orderedGroups(an)) {
+    if (g.skip || !g.label) continue;
+    const gl = extractGlyph(an, g);
+    if (gl.lowRes) low++;
+    add.push({ id: uid(), label: g.label, png: gl.png, w: gl.w, h: gl.h, u: gl.u, top: gl.top, sheet: sheetId, created: now });
+  }
+  samples.push(...add); await Store.put(add);
+  imgCache.clear();
+  toast(`Saved ${add.length} samples.` + (low ? ` ${low} are small; a closer photo gives sharper letters.` : ''), async () => {
+    const ids = new Set(add.map(s => s.id)); samples = samples.filter(s => !ids.has(s.id)); await Store.remove([...ids]); refreshAll();
+  });
+  $('#expectedText').value = '';
+  current = null; $('#reviewPanel').hidden = true;
+  refreshAll();
+  nextInQueue();
+}
+function nextInQueue() {
+  const f = queue.shift();
+  $('#queueNote').hidden = !queue.length;
+  $('#queueNote').textContent = queue.length ? `${queue.length} more photo${queue.length > 1 ? 's' : ''} waiting.` : '';
+  if (f) startReview(f);
+}
+
+// ---------- rendering ----------
+const imgCache = new Map(); const tintCache = new Map();
+function sampleImage(s) {
+  if (imgCache.has(s.id)) return imgCache.get(s.id);
+  const p = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = s.png; });
+  imgCache.set(s.id, p); return p;
+}
+function tinted(s, im, color) {
+  const key = s.id + color; if (tintCache.has(key)) return tintCache.get(key);
+  const c = document.createElement('canvas'); c.width = s.w; c.height = s.h;
+  const x = c.getContext('2d'); x.drawImage(im, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, s.w, s.h);
+  if (tintCache.size > 3000) tintCache.clear();
+  tintCache.set(key, c); return c;
+}
+let lastPick = new Map();
+async function renderHandwriting(text, o) {
+  const index = buildIndex(samples);
+  const maxLen = Math.max(1, ...[...index.keys()].map(k => [...k].length));
+  const rnd = Math.random; const j = o.jitter;
+  const U = o.size, PAGE_W = o.width, margin = U * 1.3, lineH = U * o.lineGap;
+  const missing = new Set();
+  function pick(label) {
+    const arr = index.get(label); if (arr.length === 1) return arr[0];
+    let s, tries = 0; do { s = arr[Math.floor(rnd() * arr.length)]; } while (s.id === lastPick.get(label) && ++tries < 8);
+    lastPick.set(label, s.id); return s;
+  }
+  function tokens(word) {
+    const ch = [...word]; const out = [];
+    if (index.has(word)) return [{ label: word }];
+    for (let i = 0; i < ch.length;) {
+      let took = false;
+      for (let L = Math.min(maxLen, ch.length - i); L >= 2; L--) { const sub = ch.slice(i, i + L).join(''); if (index.has(sub)) { out.push({ label: sub }); i += L; took = true; break; } }
+      if (took) continue;
+      if (index.has(ch[i])) out.push({ label: ch[i] }); else { out.push({ missing: ch[i] }); missing.add(ch[i]); }
+      i++;
+    }
+    return out;
+  }
+  const lines = [];
+  for (const para of text.replace(/\r/g, '').split('\n')) {
+    let line = [], x = margin;
+    for (const word of para.split(/[ \t]+/).filter(Boolean)) {
+      const placed = []; let wx = 0;
+      for (const t of tokens(word)) {
+        if (t.missing) { const w = U * 0.55; placed.push({ missing: t.missing, x: wx, w }); wx += w + U * 0.1; continue; }
+        const s = pick(t.label); const sc = (U / s.u) * (1 + (rnd() - 0.5) * 0.08 * j);
+        const w = s.w * sc; placed.push({ s, x: wx, sc, w });
+        wx += w + U * (0.05 + (rnd() - 0.5) * 0.06 * j);
+      }
+      if (x + wx > PAGE_W - margin && line.length) { lines.push(line); line = []; x = margin; }
+      const dy = (rnd() - 0.5) * 0.08 * U * j;
+      for (const p of placed) { p.x += x; p.dy = dy; line.push(p); }
+      x += wx + U * (0.45 + (rnd() - 0.5) * 0.25 * j);
+    }
+    lines.push(line);
+  }
+  const needed = new Set(); lines.flat().forEach(p => p.s && needed.add(p.s));
+  const imgs = new Map(); await Promise.all([...needed].map(async s => imgs.set(s.id, await sampleImage(s))));
+  const S = 2, PAGE_H = Math.ceil(margin * 0.6 + U * 1.5 + (lines.length - 1) * lineH + U * 1.2 + margin * 0.6);
+  const cv = document.createElement('canvas'); cv.width = PAGE_W * S; cv.height = PAGE_H * S;
+  const ctx = cv.getContext('2d'); ctx.scale(S, S);
+  if (o.paper !== 'clear') { ctx.fillStyle = '#fdfdfb'; ctx.fillRect(0, 0, PAGE_W, PAGE_H); }
+  const base0 = margin * 0.6 + U * 1.5;
+  if (o.paper === 'lined') {
+    ctx.strokeStyle = 'rgba(80,120,200,0.35)'; ctx.lineWidth = 1;
+    for (let y = base0 + U * 0.08; y < PAGE_H; y += lineH) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(PAGE_W, y); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(210,90,90,0.45)'; ctx.beginPath(); ctx.moveTo(margin * 0.7, 0); ctx.lineTo(margin * 0.7, PAGE_H); ctx.stroke();
+  }
+  lines.forEach((line, li) => {
+    const base = base0 + li * lineH + (rnd() - 0.5) * 0.12 * U * j;
+    const slope = (rnd() - 0.5) * 0.012 * j;
+    for (const p of line) {
+      if (p.missing) {
+        ctx.save(); ctx.strokeStyle = '#d0453a'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.2;
+        ctx.strokeRect(p.x, base - U * 0.75, p.w, U * 0.75); ctx.restore(); continue;
+      }
+      const im = imgs.get(p.s.id); if (!im) continue;
+      const w = p.s.w * p.sc, hh = p.s.h * p.sc;
+      const y = base + p.x * slope + p.s.top * p.sc + p.dy + (rnd() - 0.5) * 0.05 * U * j;
+      const rot = (rnd() - 0.5) * 0.045 * j;
+      ctx.save(); ctx.globalAlpha = 0.86 + rnd() * 0.14;
+      ctx.translate(p.x + w / 2, y + hh / 2); ctx.rotate(rot);
+      ctx.drawImage(tinted(p.s, im, o.ink), -w / 2, -hh / 2, w, hh);
+      ctx.restore();
+    }
+  });
+  return { canvas: cv, missing: [...missing] };
+}
+
+let outUrl = null;
+async function doRender(reshuffle) {
+  if (reshuffle) lastPick = new Map();
+  const text = $('#writeText').value;
+  const box = $('#outBox');
+  const res = await renderHandwriting(text, {
+    size: +$('#wSize').value, lineGap: +$('#wGap').value / 10, jitter: +$('#wJit').value / 100,
+    ink: $('#wInk').value, paper: $('#wPaper').value, width: Math.max(600, Math.min(1100, box.clientWidth * 1.4 || 900)),
+  });
+  const blob = await new Promise(r => res.canvas.toBlob(r, 'image/png'));
+  if (outUrl) URL.revokeObjectURL(outUrl);
+  outUrl = URL.createObjectURL(blob);
+  $('#outImg').src = outUrl; $('#outImg').hidden = false; $('#outPlaceholder').hidden = true;
+  $('#downloadBtn').href = outUrl; $('#downloadBtn').hidden = false;
+  if (res.missing.length) {
+    const m = $('#missingMsg'); m.hidden = false; m.textContent = '';
+    m.append(`No samples yet for ${res.missing.map(c => '“' + c + '”').join(' ')}. They're shown as dotted boxes. `,
+      h('button', { class: 'btn small', type: 'button', onclick: () => { switchTab('coverage'); } }, 'See what to photograph'));
+  } else $('#missingMsg').hidden = true;
+}
+
+// ---------- coverage UI ----------
+function bestThumb(index, c) {
+  const arr = index.get(c); if (!arr || !arr.length) return null;
+  return h('img', { src: arr[arr.length - 1].png, alt: '' });
+}
+function renderCoverage() {
+  const cov = coverage();
+  const pct = Math.round(cov.overall * 100);
+  $('#readyNum').innerHTML = `${pct}<small>%</small>`;
+  $('#readyPill').textContent = `${pct}% ready`;
+  const missingLower = cov.items.filter(i => i.group === 'lower' && i.n === 0).length;
+  let txt;
+  if (!samples.length) txt = 'No samples yet. Start with the practice page below.';
+  else if (missingLower) txt = `${missingLower} lowercase letter${missingLower > 1 ? 's are' : ' is'} still missing, so many words can't be written yet.`;
+  else if (pct < 60) txt = 'Every lowercase letter is there. More versions will stop repeats looking stamped.';
+  else if (pct < 90) txt = 'Good enough for most text. The list below shows what would help most.';
+  else txt = 'Reliable. Extra photos now add variety rather than coverage.';
+  $('#readyText').textContent = txt;
+  const bars = $('#groupBars'); bars.textContent = '';
+  for (const g of cov.groups) {
+    const p = Math.round(g.score * 100);
+    bars.append(h('div', { class: 'bar-row' }, h('span', null, g.name), h('div', { class: 'bar' }, h('i', { style: `width:${p}%` })), h('span', { class: 'mono' }, p + '%')));
+  }
+  // Priority list
+  const todo = $('#todoList'); todo.textContent = '';
+  const top = cov.items.filter(i => i.status !== 'good').sort((a, b) => b.priority - a.priority).slice(0, 10);
+  if (!top.length) todo.append(h('p', { class: 'muted' }, 'Nothing urgent. Every character has enough consistent samples.'));
+  for (const it of top) {
+    const label = { missing: 'Missing', weak: 'Too few', almost: 'Almost', check: 'Uneven' }[it.status];
+    todo.append(h('div', { class: 'todo-item' },
+      h('div', { class: 'todo-glyph' }, bestThumb(cov.index, it.c) || it.c),
+      h('div', { class: 'todo-text' }, h('b', null, it.c.length > 1 ? `the word “${it.c}”` : charName(it.c)), h('span', { class: 'small muted' }, reasonFor(it))),
+      h('span', { class: 'chip ' + it.status }, label)));
+  }
+  // Practice page
+  practiceCache = practiceText(cov);
+  $('#practiceSheet').textContent = practiceCache;
+  // Character map
+  const maps = $('#charmaps'); maps.textContent = '';
+  for (const g of cov.groups) {
+    const grid = h('div', { class: 'charmap' });
+    for (const it of cov.items.filter(i => i.group === g.key)) {
+      grid.append(h('div', { class: 'cm ' + it.status, title: `${charName(it.c)}: ${it.n} of ${it.target}` }, h('b', null, it.c), h('span', null, `${it.n}/${it.target}`)));
+    }
+    maps.append(h('div', { style: 'display:grid;gap:6px' }, h('div', { class: 'eyebrow' }, g.name), grid));
+  }
+  $('#joinedToggle').checked = !!settings.joined;
+  const note = $('#storageNote');
+  note.hidden = Store.persistent;
+  note.textContent = 'This browser is blocking storage, so samples will be lost when you close the page. Use Library → Save backup file.';
+  $('#demoRemove').hidden = !samples.some(s => s.sheet === 'demo');
+}
+
+// ---------- library UI ----------
+function sortKey(label) {
+  const c = label[0];
+  const grp = label.length > 1 ? 4 : /[a-z]/.test(c) ? 0 : /[A-Z]/.test(c) ? 1 : /[0-9]/.test(c) ? 2 : 3;
+  return grp + ':' + label;
+}
+function renderLibrary() {
+  const index = buildIndex(); const out = findOutliers(index); const onlyFlagged = $('#libFlagged').checked;
+  $('#libCount').textContent = `${samples.length} samples, ${index.size} characters`;
+  const list = $('#libList'); list.textContent = '';
+  const labels = [...index.keys()].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+  if (!labels.length) list.append(h('p', { class: 'muted' }, 'No samples yet. Add a photo to start your library.'));
+  for (const label of labels) {
+    let arr = index.get(label);
+    if (onlyFlagged) arr = arr.filter(s => out.has(s.id));
+    if (!arr.length) continue;
+    const maxRel = Math.max(...index.get(label).map(relH));
+    const wrap = h('div', { class: 'lib-samples' });
+    for (const s of arr) {
+      const hpx = Math.max(14, Math.round(54 * relH(s) / Math.max(maxRel, 1)));
+      wrap.append(h('div', { class: 'sample' + (out.has(s.id) ? ' outlier' : ''), title: s.sheet === 'demo' ? 'Example sample' : '' },
+        h('img', { src: s.png, alt: label, style: `height:${hpx}px` }),
+        h('button', { type: 'button', 'aria-label': 'Delete sample', onclick: () => deleteSamples([s.id]) }, '×')));
+    }
+    const t = targetFor(label);
+    list.append(h('div', { class: 'lib-group' },
+      h('div', { class: 'lib-head' }, h('b', null, label), h('span', { class: 'small muted mono' }, `${index.get(label).length} / ${t}`)),
+      wrap));
+  }
+}
+async function deleteSamples(ids) {
+  const set = new Set(ids); const removed = samples.filter(s => set.has(s.id));
+  samples = samples.filter(s => !set.has(s.id)); await Store.remove(ids); refreshAll();
+  toast(`Deleted ${removed.length} sample${removed.length > 1 ? 's' : ''}.`, async () => { samples.push(...removed); await Store.put(removed); refreshAll(); });
+}
+
+// ---------- example samples (computer font, clearly marked) ----------
+async function addDemo() {
+  if (samples.some(s => s.sheet === 'demo')) return toast('Example samples are already loaded.');
+  try { await document.fonts.load('64px "Caveat"'); } catch (e) {}
+  const font = '64px "Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", cursive';
+  const plan = [[LOWER, 5], [UPPER, 3], [DIGITS, 3], [SYMBOLS, 2]];
+  const add = [];
+  const c = document.createElement('canvas'); c.width = 200; c.height = 200; const x = c.getContext('2d', { willReadFrequently: true });
+  for (const [set, n] of plan) for (const ch of set) for (let k = 0; k < n; k++) {
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, 200, 200);
+    const s = 0.92 + Math.random() * 0.16, rot = (Math.random() - 0.5) * 0.12;
+    x.translate(60, 130); x.rotate(rot); x.scale(s, s * (0.95 + Math.random() * 0.1)); x.font = font; x.fillStyle = '#000'; x.fillText(ch, 0, 0);
+    const d = x.getImageData(0, 0, 200, 200).data; let x1 = 200, y1 = 200, x2 = -1, y2 = -1;
+    for (let yy = 0; yy < 200; yy++) for (let xx = 0; xx < 200; xx++) if (d[(yy * 200 + xx) * 4 + 3] > 20) { if (xx < x1) x1 = xx; if (xx > x2) x2 = xx; if (yy < y1) y1 = yy; if (yy > y2) y2 = yy; }
+    if (x2 < 0) continue;
+    x1 = Math.max(0, x1 - 2); y1 = Math.max(0, y1 - 2); x2 = Math.min(199, x2 + 2); y2 = Math.min(199, y2 + 2);
+    const w = x2 - x1 + 1, hh = y2 - y1 + 1; const o = document.createElement('canvas'); o.width = w; o.height = hh;
+    o.getContext('2d').drawImage(c, x1, y1, w, hh, 0, 0, w, hh);
+    add.push({ id: uid(), label: ch, png: o.toDataURL('image/png'), w, h: hh, u: 40, top: y1 - 130, sheet: 'demo', created: Date.now() });
+  }
+  // A few blank-out gaps so the coverage advice has something to show
+  const drop = new Set(['q', 'z', 'Q', 'X', '%', '#']);
+  const keep = add.filter(s => !drop.has(s.label)).filter(s => !(s.label === 'e' && Math.random() < 0.6));
+  samples.push(...keep); await Store.put(keep); refreshAll();
+  toast(`Loaded ${keep.length} example samples.`);
+}
+async function removeDemo() {
+  const ids = samples.filter(s => s.sheet === 'demo').map(s => s.id);
+  if (!ids.length) return toast('No example samples to remove.');
+  samples = samples.filter(s => s.sheet !== 'demo'); await Store.remove(ids); refreshAll();
+  toast(`Removed ${ids.length} example samples.`);
+}
+
+// ---------- backup ----------
+function backupJson() { return JSON.stringify({ app: 'handwriting-studio', version: 1, exported: new Date().toISOString(), samples }); }
+async function importJson(text) {
+  let data; try { data = JSON.parse(text); } catch (e) { return toast('That isn’t a valid backup.'); }
+  const list = (data && Array.isArray(data.samples)) ? data.samples : null;
+  if (!list) return toast('That isn’t a Handwriting Studio backup.');
+  const have = new Set(samples.map(s => s.id));
+  const add = list.filter(s => s && s.id && s.label && typeof s.png === 'string' && s.png.startsWith('data:image/') && s.w > 0 && s.h > 0 && s.u > 0 && !have.has(s.id));
+  samples.push(...add); await Store.put(add); refreshAll();
+  toast(`Restored ${add.length} samples.`);
+}
+
+// ---------- wiring ----------
+function switchTab(name) {
+  settings.tab = name; saveSettings();
+  document.querySelectorAll('[data-view]').forEach(v => v.hidden = v.dataset.view !== name);
+  document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false'));
+  if (name === 'library') renderLibrary();
+  if (name === 'write' && samples.length && $('#outImg').hidden) doRender(false);
+  window.scrollTo({ top: 0 });
+}
+function refreshAll() {
+  tintCache.clear();
+  renderCoverage();
+  if (settings.tab === 'library') renderLibrary();
+}
+document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+$('#goCollect').addEventListener('click', () => { $('#expectedText').value = practiceCache; switchTab('collect'); });
+$('#newPractice').addEventListener('click', () => { settings.seed++; saveSettings(); renderCoverage(); });
+$('#copyPractice').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(practiceCache); toast('Copied.'); }
+  catch (e) { const r = document.createRange(); r.selectNodeContents($('#practiceSheet')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Selected. Copy it from the menu.'); }
+});
+$('#joinedToggle').addEventListener('change', e => { settings.joined = e.target.checked; saveSettings(); renderCoverage(); });
+$('#demoAdd').addEventListener('click', addDemo);
+$('#demoRemove').addEventListener('click', removeDemo);
+$('#fileInput').addEventListener('change', e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length) return;
+  queue.push(...files);
+  if (!current) nextInQueue(); else { $('#queueNote').hidden = false; $('#queueNote').textContent = `${queue.length} more photo${queue.length > 1 ? 's' : ''} waiting.`; }
+});
+let sensTimer = null;
+$('#sens').addEventListener('input', e => { $('#sensVal').textContent = e.target.value; clearTimeout(sensTimer); sensTimer = setTimeout(runAnalysis, 250); });
+$('#relabel').addEventListener('click', () => current && relabel());
+$('#saveSamples').addEventListener('click', () => current && saveCurrent());
+$('#discardPhoto').addEventListener('click', () => { current = null; $('#reviewPanel').hidden = true; nextInQueue(); });
+$('#libFlagged').addEventListener('change', renderLibrary);
+$('#exportBtn').addEventListener('click', () => {
+  const blob = new Blob([backupJson()], { type: 'application/json' });
+  const a = h('a', { href: URL.createObjectURL(blob), download: `handwriting-backup-${new Date().toISOString().slice(0, 10)}.json` });
+  document.body.append(a); a.click(); a.remove();
+});
+$('#copyBackup').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(backupJson()); toast('Backup copied. Paste it into a note to keep it.'); }
+  catch (e) { toast('Copying isn’t allowed here. Use Save backup file.'); }
+});
+$('#importFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) importJson(await f.text()); });
+$('#importTextBtn').addEventListener('click', () => { const t = $('#importText').value.trim(); if (t) { importJson(t); $('#importText').value = ''; } });
+let clearArmed = false;
+$('#clearAll').addEventListener('click', async () => {
+  if (!clearArmed) { clearArmed = true; $('#clearConfirm').hidden = false; setTimeout(() => { clearArmed = false; $('#clearConfirm').hidden = true; }, 4000); return; }
+  clearArmed = false; $('#clearConfirm').hidden = true;
+  const all = samples.slice(); samples = []; await Store.remove(all.map(s => s.id)); refreshAll();
+  toast(`Deleted ${all.length} samples.`, async () => { samples.push(...all); await Store.put(all); refreshAll(); });
+});
+$('#renderBtn').addEventListener('click', () => doRender(false));
+$('#shuffleBtn').addEventListener('click', () => doRender(true));
+
+// Test hook
+window.HS = { analyzeImage, autoLabel, extractGlyph, coverage, practiceText, renderHandwriting, orderedGroups, get samples() { return samples; }, startReview, saveCurrent };
+
+(async function init() {
+  await Store.open();
+  samples = await Store.all();
+  renderCoverage();
+  switchTab(['coverage', 'collect', 'library', 'write'].includes(settings.tab) ? settings.tab : 'coverage');
+})();
+</script>
+<!--HS-BODY-END-->
+</body>
+</html>

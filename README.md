@@ -82,3 +82,4 @@ These are written in plain Lua 5.1 (no type annotations or `+=`), so they also r
 - [`blender-film/`](blender-film/README.md): filmkit, a Python + Blender engine for 3D animated films, plus the example film "Park Pals".
 - [`firetv-remote/`](firetv-remote/README.md): a Wi-Fi remote for a Fire TV (like a Toshiba Fire TV) that runs on an iPhone in the free Scriptable app.
 - [`family-alerts/`](family-alerts/README.md): push alerts to your family's phones (in the free ntfy app) when you get home, leave home, or pass downtown heading north. Runs on iPhone with Scriptable + Shortcuts.
+- [`handwriting-studio/`](handwriting-studio/README.md): upload photos of your handwriting, see which letters need more pictures, and write any text in your own hand. One HTML file, runs on your phone.
