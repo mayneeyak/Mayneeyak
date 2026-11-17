@@ -170,7 +170,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .card { width: 76px; display: grid; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
 .card.word-start { margin-left: 10px; }
 .card .thumb { height: 56px; border-radius: 5px; background: var(--glyph-paper); display: grid; place-items: center; overflow: hidden; }
-.card .thumb canvas { max-width: 100%; max-height: 54px; }
+.card .thumb img { max-width: 100%; max-height: 54px; }
 .card input { padding: 4px 6px; font: 600 0.95rem var(--font-mono); text-align: center; border-radius: 6px; }
 .card .acts { display: flex; justify-content: space-between; }
 .card .acts button { appearance: none; border: 0; background: none; color: var(--muted); font: 600 0.72rem var(--font-body); padding: 2px 3px; cursor: pointer; }
@@ -296,7 +296,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
         <span class="small muted">You can pick several. They're processed one at a time, on this device only.</span>
       </label>
       <p class="small muted" id="queueNote" hidden></p>
+      <p class="small muted">On iPhone, if the page reloads after you take a photo, take it with the Camera app first, then choose it here from your photo library.</p>
     </div>
+
+    <div class="msg bad" id="errorBox" hidden role="alert"><b>That didn't work.</b> <span id="errorText"></span></div>
 
     <div class="panel" id="reviewPanel" hidden>
       <div class="panel-head">
@@ -448,6 +451,9 @@ function h(tag, attrs, ...kids) {
 }
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const median = arr => { if (!arr.length) return 0; const s = [...arr].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const scratch = document.createElement('canvas');
+function freeCanvas(c) { if (c) { c.width = 0; c.height = 0; } }
+const nextFrame = () => new Promise(r => setTimeout(r, 0));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 function charName(c) {
   const names = { ' ':'space', '.':'full stop', ',':'comma', "'":'apostrophe', '"':'quote', '-':'dash', ':':'colon', ';':'semicolon', '(':'open bracket', ')':'close bracket', '!':'exclamation mark', '?':'question mark', '&':'ampersand', '@':'at sign', '#':'hash', '$':'dollar', '%':'percent', '/':'slash', '+':'plus' };
@@ -468,9 +474,22 @@ function toast(text, undo) {
 }
 $('#toastUndo').addEventListener('click', () => { if (undoFn) undoFn(); $('#toast').hidden = true; undoFn = null; });
 
+// ---------- errors people can see (and send back) ----------
+function showError(text) { const b = $('#errorBox'); b.hidden = false; $('#errorText').textContent = text; b.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+function hideError() { $('#errorBox').hidden = true; }
+function reportError(step, e, extra) {
+  const detail = (e && (e.message || e.name)) || String(e);
+  const dev = (navigator.userAgent.match(/iPhone|iPad|Android|Macintosh|Windows/) || ['device'])[0];
+  showError(`Something went wrong while ${step}. ${extra || ''} Details: ${detail} [storage: ${Store.mode}, ${dev}]`);
+}
+window.addEventListener('error', e => reportError('working', e.error || e.message));
+window.addEventListener('unhandledrejection', e => reportError('working', e.reason));
+
 // ---------- storage ----------
 const Store = (() => {
-  let db = null;
+  let db = null, ls = false; const LS_KEY = 'hs-samples';
+  const lsRead = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { return []; } };
+  const lsWrite = list => { try { localStorage.setItem(LS_KEY, JSON.stringify(list)); return true; } catch (e) { return false; } };
   const wrap = req => new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
   function done(t) { return new Promise((res, rej) => { t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); }
   return {
@@ -481,12 +500,29 @@ const Store = (() => {
           r.onupgradeneeded = () => r.result.createObjectStore('samples', { keyPath: 'id' });
           r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
         });
+        // Prove it really works: some in-app browsers open it but fail every write
+        const t = db.transaction('samples', 'readwrite'); t.objectStore('samples').put({ id: '__probe' }); t.objectStore('samples').delete('__probe'); await done(t);
       } catch (e) { db = null; }
+      if (!db) { try { localStorage.setItem('hs-probe', '1'); localStorage.removeItem('hs-probe'); ls = true; } catch (e) { ls = false; } }
     },
-    get persistent() { return !!db; },
-    async all() { if (!db) return []; try { return await wrap(db.transaction('samples').objectStore('samples').getAll()); } catch (e) { return []; } },
-    async put(list) { if (!db || !list.length) return; try { const t = db.transaction('samples', 'readwrite'); const os = t.objectStore('samples'); list.forEach(s => os.put(s)); await done(t); } catch (e) { toast('Could not save to this browser’s storage.'); } },
-    async remove(ids) { if (!db || !ids.length) return; try { const t = db.transaction('samples', 'readwrite'); const os = t.objectStore('samples'); ids.forEach(id => os.delete(id)); await done(t); } catch (e) {} },
+    get persistent() { return !!db || ls; },
+    get mode() { return db ? 'indexeddb' : ls ? 'localstorage' : 'memory'; },
+    async all() {
+      if (db) { try { return (await wrap(db.transaction('samples').objectStore('samples').getAll())).filter(s => s.id !== '__probe'); } catch (e) { return []; } }
+      return ls ? lsRead() : [];
+    },
+    // Returns true when the samples are safely stored
+    async put(list) {
+      if (!list.length) return true;
+      if (db) { try { const t = db.transaction('samples', 'readwrite'); const os = t.objectStore('samples'); list.forEach(s => os.put(s)); await done(t); return true; } catch (e) { return false; } }
+      if (ls) { const cur = lsRead(); const ids = new Set(list.map(s => s.id)); return lsWrite(cur.filter(s => !ids.has(s.id)).concat(list)); }
+      return false;
+    },
+    async remove(ids) {
+      if (!ids.length) return;
+      if (db) { try { const t = db.transaction('samples', 'readwrite'); const os = t.objectStore('samples'); ids.forEach(id => os.delete(id)); await done(t); } catch (e) {} return; }
+      if (ls) { const set = new Set(ids); lsWrite(lsRead().filter(s => !set.has(s.id))); }
+    },
   };
 })();
 
@@ -639,9 +675,10 @@ function practiceText(cov) {
 }
 
 // ---------- image analysis: photo -> letter candidates ----------
+const MAX_DIM = 1600;
 function analyzeImage(img, sens) {
   const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
-  const sc = Math.min(1, 2000 / Math.max(iw, ih));
+  const sc = Math.min(1, MAX_DIM / Math.max(iw, ih));
   const W = Math.max(1, Math.round(iw * sc)), H = Math.max(1, Math.round(ih * sc));
   const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -710,7 +747,7 @@ function analyzeImage(img, sens) {
   let groups = cs.map(c => ({ members: [c.id], x1: c.x1, y1: c.y1, x2: c.x2, y2: c.y2, area: c.area }));
   const isSmall = g => (g.y2 - g.y1 + 1) < 0.42 * hMed && g.area < 0.3 * hMed * hMed;
   let changed = true, guard = 0;
-  while (changed && guard++ < 20) {
+  while (changed && guard++ < 5000) {
     changed = false;
     groups.sort((a, b) => a.area - b.area);
     for (let i = 0; i < groups.length; i++) {
@@ -839,7 +876,7 @@ function extractGlyph(an, g) {
   }
   inkVals.sort((a, b) => a - b);
   const inkLevel = inkVals[Math.floor(inkVals.length * 0.08)] || 0;
-  const c = document.createElement('canvas'); c.width = w; c.height = hh;
+  const c = scratch; c.width = w; c.height = hh;
   const cx = c.getContext('2d'); const out = cx.createImageData(w, hh);
   for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) {
     let on = mask[y * w + x];
@@ -860,7 +897,7 @@ function extractGlyph(an, g) {
   if (f < 1) {
     const c2 = document.createElement('canvas'); c2.width = Math.max(1, Math.round(w * f)); c2.height = Math.max(1, Math.round(hh * f));
     const x2c = c2.getContext('2d'); x2c.imageSmoothingQuality = 'high'; x2c.drawImage(c, 0, 0, c2.width, c2.height);
-    png = c2.toDataURL('image/png');
+    png = c2.toDataURL('image/png'); freeCanvas(c2);
     return { png, w: c2.width, h: c2.height, u: u * f, top: (y1 - base) * f, lowRes: false };
   }
   png = c.toDataURL('image/png');
@@ -872,17 +909,23 @@ let current = null;   // { img, an, name }
 let queue = [];
 let practiceCache = '';
 
+// Shrink the photo straight away, so a 12-megapixel picture doesn't stay in memory at full size
 async function loadImageFile(file) {
   const url = URL.createObjectURL(file);
   try {
-    const img = new Image(); img.src = url; await img.decode();
-    return img;
-  } finally { setTimeout(() => URL.revokeObjectURL(url), 30000); }
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('This picture format can’t be opened here. Try a JPEG or PNG, or take a screenshot of the photo and upload that.')); img.src = url; });
+    const iw = img.naturalWidth, ih = img.naturalHeight; const k = Math.min(1, MAX_DIM / Math.max(iw, ih));
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(iw * k)); c.height = Math.max(1, Math.round(ih * k));
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height);
+    img.src = ''; return c;
+  } finally { URL.revokeObjectURL(url); }
 }
 async function startReview(file) {
   let img;
+  hideError();
   try { img = await loadImageFile(file); }
-  catch (e) { toast('That file couldn’t be opened as a picture.'); return nextInQueue(); }
+  catch (e) { reportError('opening the photo', e); return nextInQueue(); }
   current = { img, name: file.name || 'photo' };
   $('#reviewPanel').hidden = false;
   if (!$('#expectedText').value.trim()) $('#expectedText').value = practiceCache;
@@ -892,10 +935,20 @@ async function startReview(file) {
 function runAnalysis() {
   if (!current) return;
   const sens = +$('#sens').value / 100;
-  current.an = analyzeImage(current.img, sens);
-  relabel();
+  try {
+    if (current.an) freeCanvas(current.an.canvas);
+    current.an = analyzeImage(current.img, sens);
+    const n = orderedGroups(current.an).length;
+    if (n > 600) {
+      orderedGroups(current.an).forEach(g => { g.label = ''; });
+      showMsg('#reviewMsg', 'bad', `Found ${n} pieces, far more than one page of writing. Paper texture or shadows are probably being read as ink. Move the ink detection slider left, or retake the photo in brighter, even light.`);
+      $('#reviewLines').textContent = ''; drawOverlay(); updateCount(); return;
+    }
+    relabel();
+  } catch (e) { reportError('reading the photo', e); }
 }
 function relabel() {
+  if (!current.an) return;
   const res = autoLabel(current.an, $('#expectedText').value);
   showMsg('#reviewMsg', res.kind, res.text);
   drawReview();
@@ -926,9 +979,12 @@ function thumbFor(an, g) {
   const pad = 3, x1 = Math.max(0, g.x1 - pad), y1 = Math.max(0, g.y1 - pad);
   const w = Math.min(an.W - x1, g.x2 - g.x1 + 1 + pad * 2), hh = Math.min(an.H - y1, g.y2 - g.y1 + 1 + pad * 2);
   const k = Math.min(1, 108 / hh, 140 / w);
-  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(hh * k));
+  const key = `${x1},${y1},${w},${hh}`;
+  if (g.thumb && g.thumbKey === key) return h('img', { src: g.thumb, alt: '' });
+  const c = scratch; c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(hh * k));
   c.getContext('2d').drawImage(an.canvas, x1, y1, w, hh, 0, 0, c.width, c.height);
-  return c;
+  g.thumb = c.toDataURL('image/jpeg', 0.8); g.thumbKey = key;
+  return h('img', { src: g.thumb, alt: '' });
 }
 function drawReview() {
   const an = current.an; drawOverlay();
@@ -966,17 +1022,35 @@ function updateCount() {
   $('#saveSamples').textContent = `Save ${ready} sample${ready === 1 ? '' : 's'}`;
   $('#saveSamples').disabled = !ready;
 }
+let saving = false;
 async function saveCurrent() {
+  if (saving || !current || !current.an) return; saving = true;
+  const btn = $('#saveSamples'); btn.disabled = true;
   const an = current.an; const sheetId = uid(); const now = Date.now();
-  const add = []; let low = 0;
-  for (const g of orderedGroups(an)) {
-    if (g.skip || !g.label) continue;
-    const gl = extractGlyph(an, g);
-    if (gl.lowRes) low++;
-    add.push({ id: uid(), label: g.label, png: gl.png, w: gl.w, h: gl.h, u: gl.u, top: gl.top, sheet: sheetId, created: now });
+  const todo = orderedGroups(an).filter(g => !g.skip && g.label);
+  const add = []; let low = 0, stored = true;
+  try {
+    for (let i = 0; i < todo.length; i += 20) {
+      const batch = [];
+      for (const g of todo.slice(i, i + 20)) {
+        const gl = extractGlyph(an, g);
+        if (gl.lowRes) low++;
+        batch.push({ id: uid(), label: g.label, png: gl.png, w: gl.w, h: gl.h, u: gl.u, top: gl.top, sheet: sheetId, created: now });
+      }
+      add.push(...batch); samples.push(...batch);
+      if (!(await Store.put(batch))) stored = false;
+      btn.textContent = `Saving ${add.length} of ${todo.length}…`;
+      await nextFrame();
+    }
+  } catch (e) {
+    saving = false; btn.disabled = false; updateCount();
+    reportError('saving the samples', e, add.length ? `${add.length} of ${todo.length} were saved before it stopped.` : '');
+    refreshAll(); return;
   }
-  samples.push(...add); await Store.put(add);
+  saving = false; btn.disabled = false;
+  freeCanvas(an.canvas); freeCanvas(current.img);
   imgCache.clear();
+  if (!stored) showError(`The ${add.length} samples can be used now, but this browser won’t let the app keep them, so they’ll be gone if the page reloads. Open the app in Safari or Chrome directly, or go to Library and tap Copy backup as text.`);
   toast(`Saved ${add.length} samples.` + (low ? ` ${low} are small; a closer photo gives sharper letters.` : ''), async () => {
     const ids = new Set(add.map(s => s.id)); samples = samples.filter(s => !ids.has(s.id)); await Store.remove([...ids]); refreshAll();
   });
@@ -1150,8 +1224,10 @@ function renderCoverage() {
   }
   $('#joinedToggle').checked = !!settings.joined;
   const note = $('#storageNote');
-  note.hidden = Store.persistent;
-  note.textContent = 'This browser is blocking storage, so samples will be lost when you close the page. Use Library → Save backup file.';
+  note.hidden = Store.mode === 'indexeddb';
+  note.textContent = Store.mode === 'memory'
+    ? 'This browser is blocking storage, so samples will be lost when the page closes. Open the app in Safari or Chrome directly, or use Library → Copy backup as text.'
+    : 'This browser only allows a little storage here (roughly 1,000 samples). Opening the app in Safari or Chrome directly gives it much more.';
   $('#demoRemove').hidden = !samples.some(s => s.sheet === 'demo');
 }
 
